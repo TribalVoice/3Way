@@ -20,7 +20,6 @@ import {
   GEMINI_MODEL_OPTIONS,
   GROK_MODEL_OPTIONS,
 } from '@/lib/types';
-import { cn } from '@/lib/utils';
 
 interface SettingsModalProps {
   open: boolean;
@@ -60,7 +59,12 @@ export function SettingsModal({
   }, [open, settings]);
 
   const handleSave = () => {
-    onSave({ geminiApiKey, grokApiKey, geminiModel, grokModel });
+    onSave({
+      geminiApiKey: geminiApiKey.trim(),
+      grokApiKey: grokApiKey.trim(),
+      geminiModel: geminiModel.trim() || DEFAULT_SETTINGS.geminiModel,
+      grokModel: grokModel.trim() || DEFAULT_SETTINGS.grokModel,
+    });
     setSaved(true);
     setTimeout(() => onOpenChange(false), 600);
   };
@@ -74,21 +78,18 @@ export function SettingsModal({
             API Keys & Models
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Keys are stored locally in your browser and sent only to the AI
-            provider via the server route.
+            Keys stay in your browser and are sent only through this app&apos;s
+            server route to Gemini or xAI. Never shared between users.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
-          {/* Gemini section */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-blue-500 to-purple-500">
                 <Bot className="h-4 w-4 text-white" />
               </div>
-              <span className="text-sm font-semibold text-slate-200">
-                Gemini
-              </span>
+              <span className="text-sm font-semibold text-slate-200">Gemini</span>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="gemini-key" className="text-xs text-slate-400">
@@ -102,6 +103,7 @@ export function SettingsModal({
                   onChange={(e) => setGeminiApiKey(e.target.value)}
                   placeholder="AIza..."
                   className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600 pr-10"
+                  autoComplete="off"
                 />
                 <button
                   type="button"
@@ -126,7 +128,7 @@ export function SettingsModal({
                   type="text"
                   value={geminiModel}
                   onChange={(e) => setGeminiModel(e.target.value)}
-                  placeholder="gemini-3.6-flash"
+                  placeholder={DEFAULT_SETTINGS.geminiModel}
                   className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600"
                 />
               ) : (
@@ -158,7 +160,6 @@ export function SettingsModal({
 
           <Separator className="bg-slate-700" />
 
-          {/* Grok section */}
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-700 border border-slate-600">
@@ -178,6 +179,7 @@ export function SettingsModal({
                   onChange={(e) => setGrokApiKey(e.target.value)}
                   placeholder="xai-..."
                   className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600 pr-10"
+                  autoComplete="off"
                 />
                 <button
                   type="button"
@@ -202,7 +204,7 @@ export function SettingsModal({
                   type="text"
                   value={grokModel}
                   onChange={(e) => setGrokModel(e.target.value)}
-                  placeholder="grok-4.5"
+                  placeholder={DEFAULT_SETTINGS.grokModel}
                   className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600"
                 />
               ) : (

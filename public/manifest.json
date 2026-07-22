@@ -1,7 +1,7 @@
 {
-  "name": "BranchChat · Gemini × Grok 3-Way Chat",
-  "short_name": "BranchChat",
-  "description": "A user-moderated, branching 3-way chat interface between you and two AI agents — Gemini and Grok.",
+  "name": "3Way Lite · You × Gemini × Grok",
+  "short_name": "3Way Lite",
+  "description": "A user-paced three-way chat room with you, Gemini, and Grok sharing one transcript.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",

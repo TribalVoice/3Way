@@ -5,29 +5,28 @@ import { Inter } from 'next/font/google';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'BranchChat · Gemini × Grok 3-Way Chat',
+  title: '3Way Lite · You × Gemini × Grok',
   description:
-    'A user-moderated, branching 3-way chat interface between you and two AI agents — Gemini and Grok.',
+    'A user-paced three-way chat room with you, Gemini, and Grok sharing one transcript.',
   manifest: '/manifest.json',
-  applicationName: 'BranchChat',
+  applicationName: '3Way Lite',
+  themeColor: '#0f172a',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'BranchChat',
+    title: '3Way Lite',
   },
   icons: {
     icon: '/icon-192.png',
     apple: '/icon-192.png',
   },
   openGraph: {
-    title: 'BranchChat · Gemini × Grok 3-Way Chat',
+    title: '3Way Lite · You × Gemini × Grok',
     description:
-      'A user-moderated, branching 3-way chat interface between you and two AI agents.',
+      'A user-paced three-way chat room with you, Gemini, and Grok sharing one transcript.',
     type: 'website',
   },
 };
-
-export const themeColor = '#0f172a';
 
 export default function RootLayout({
   children,
@@ -40,7 +39,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#0f172a" />
         <meta
           name="viewport"
-          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+          content="width=device-width, initial-scale=1"
         />
         <link rel="manifest" href="/manifest.json" />
       </head>
