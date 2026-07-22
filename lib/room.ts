@@ -1,4 +1,4 @@
-import { Room, Turn, Speaker, TurnStatus } from './types';
+import { Room, Turn, Speaker, TurnStatus, TurnKind } from './types';
 
 export function createEmptyRoom(): Room {
   return { turns: [] };
@@ -15,6 +15,9 @@ export function createTurn(
     modelName?: string;
     status?: TurnStatus;
     error?: string;
+    kind?: TurnKind;
+    fileName?: string;
+    truncated?: boolean;
   } = {}
 ): Turn {
   return {
@@ -25,11 +28,14 @@ export function createTurn(
     modelName: options.modelName,
     status: options.status ?? 'complete',
     error: options.error,
+    kind: options.kind ?? 'message',
+    fileName: options.fileName,
+    truncated: options.truncated,
   };
 }
 
 export function appendTurn(room: Room, turn: Turn): Room {
-  return { turns: [...room.turns, turn] };
+  return { ...room, turns: [...room.turns, turn] };
 }
 
 export function updateTurn(
@@ -38,33 +44,33 @@ export function updateTurn(
   updates: Partial<Turn>
 ): Room {
   return {
-    turns: room.turns.map((t) =>
-      t.id === id ? { ...t, ...updates } : t
-    ),
+    ...room,
+    turns: room.turns.map((t) => (t.id === id ? { ...t, ...updates } : t)),
   };
 }
 
 export function removeTurn(room: Room, id: string): Room {
-  return { turns: room.turns.filter((t) => t.id !== id) };
+  return { ...room, turns: room.turns.filter((t) => t.id !== id) };
 }
 
 /** Drop in-flight turns left over from a closed tab / crash */
 export function sanitizeRoom(room: Room): Room {
   return {
+    ...room,
     turns: room.turns
-      .filter((t) => t.status !== 'pending')
+      .filter((t) => t.status !== 'pending' && t.status !== 'streaming')
       .map((t) =>
-        t.status === 'error' && !t.content
+        t.status === 'error'
           ? t
-          : t.status === 'error'
-            ? t
-            : { ...t, status: 'complete' as const }
+          : { ...t, status: 'complete' as const, error: undefined }
       ),
   };
 }
 
 export function hasPendingTurns(room: Room): boolean {
-  return room.turns.some((t) => t.status === 'pending');
+  return room.turns.some(
+    (t) => t.status === 'pending' || t.status === 'streaming'
+  );
 }
 
 export function speakerLabel(speaker: Speaker): string {
@@ -78,9 +84,21 @@ export function speakerLabel(speaker: Speaker): string {
   }
 }
 
+function turnToProviderContent(turn: Turn): string {
+  if (turn.kind === 'document') {
+    const name = turn.fileName || 'document';
+    const note = turn.truncated
+      ? '\n\n[Note: document text was truncated to fit context limits.]'
+      : '';
+    return `[Attached document: ${name}]\n\n${turn.content}${note}`;
+  }
+  return turn.content;
+}
+
 /**
  * Build OpenAI-style messages for one model from the full room transcript.
  * Complete turns only; speakers labeled so both models share one room history.
+ * Streaming turns with partial content are excluded until complete.
  */
 export function buildProviderMessages(
   room: Room,
@@ -94,20 +112,20 @@ export function buildProviderMessages(
     if (turn.status !== 'complete') continue;
     if (!turn.content.trim()) continue;
 
-    if (turn.speaker === 'user') {
-      messages.push({ role: 'user', content: turn.content });
+    const content = turnToProviderContent(turn);
+
+    if (turn.speaker === 'user' || turn.kind === 'document') {
+      messages.push({ role: 'user', content });
       continue;
     }
 
     if (turn.speaker === forSpeaker) {
-      messages.push({ role: 'assistant', content: turn.content });
+      messages.push({ role: 'assistant', content });
     } else {
-      // Other AI (or any non-self speaker) appears as a user-labeled note
-      // so this model knows what was said in the room without role confusion.
       const label = speakerLabel(turn.speaker);
       messages.push({
         role: 'user',
-        content: `[${label} said]: ${turn.content}`,
+        content: `[${label} said]: ${content}`,
       });
     }
   }
@@ -122,7 +140,42 @@ export function systemPromptFor(speaker: 'gemini' | 'grok'): string {
     `You are ${name} in a live three-way chat room with a human user and ${other}.`,
     `The user controls the pace: they choose when you speak and may ask only you, only ${other}, or both of you.`,
     `You can see the full room transcript. Messages from ${other} appear as "[${other} said]: ...".`,
+    `Documents appear as "[Attached document: filename]" with extracted text.`,
     `Speak as yourself. Be clear and direct. You may agree, disagree, or build on ${other}'s points when relevant.`,
     `Do not pretend to be the user or ${other}. Do not narrate the whole room unless asked.`,
   ].join(' ');
+}
+
+export function roomToMarkdown(room: Room): string {
+  const lines: string[] = [
+    '# 3Way Lite room export',
+    '',
+    `Exported: ${new Date().toISOString()}`,
+    '',
+  ];
+  for (const t of room.turns) {
+    if (t.status !== 'complete' && t.status !== 'error') continue;
+    if (t.kind === 'document') {
+      lines.push(`## Document: ${t.fileName || 'file'}`);
+      if (t.truncated) lines.push('*(truncated)*');
+      lines.push('');
+      lines.push(t.content);
+      lines.push('');
+      continue;
+    }
+    const who =
+      t.speaker === 'user'
+        ? 'You'
+        : t.speaker === 'gemini'
+          ? 'Gemini'
+          : 'Grok';
+    lines.push(`## ${who}`);
+    if (t.status === 'error') {
+      lines.push(`*Error: ${t.error || 'failed'}*`);
+    } else {
+      lines.push(t.content);
+    }
+    lines.push('');
+  }
+  return lines.join('\n');
 }

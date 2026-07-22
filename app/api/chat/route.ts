@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
-const FETCH_TIMEOUT_MS = 90_000;
+const FETCH_TIMEOUT_MS = 120_000;
 
 interface MessageItem {
   role: 'user' | 'assistant';
@@ -15,25 +15,11 @@ interface RequestBody {
   model: string;
   messages: MessageItem[];
   systemPrompt?: string;
+  stream?: boolean;
 }
 
-async function fetchWithTimeout(
-  url: string,
-  init: RequestInit,
-  timeoutMs = FETCH_TIMEOUT_MS
-): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } catch (err: unknown) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error(`Request timed out after ${timeoutMs / 1000}s.`);
-    }
-    throw err;
-  } finally {
-    clearTimeout(timer);
-  }
+function sseLine(data: unknown): string {
+  return `data: ${JSON.stringify(data)}\n\n`;
 }
 
 function friendlyHttpError(provider: string, status: number, body: string): string {
@@ -50,13 +36,7 @@ function friendlyHttpError(provider: string, status: number, body: string): stri
   return `${provider} API error (${status}): ${snippet}`;
 }
 
-async function callGemini(
-  apiKey: string,
-  model: string,
-  messages: MessageItem[],
-  systemPrompt?: string
-): Promise<string> {
-  // Gemini prefers alternating user/model; merge consecutive same-role turns.
+function buildGeminiContents(messages: MessageItem[]) {
   const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
   for (const m of messages) {
     const role = m.role === 'user' ? 'user' : 'model';
@@ -67,66 +47,92 @@ async function callGemini(
       contents.push({ role, parts: [{ text: m.content }] });
     }
   }
-
   if (contents.length === 0) {
     throw new Error('No messages to send to Gemini.');
   }
-
-  // Gemini requires the last content role to be "user" for generateContent in many cases;
-  // if the transcript ends on this model's own assistant turn only, prepend is already handled client-side.
   if (contents[contents.length - 1].role !== 'user') {
     contents.push({
       role: 'user',
       parts: [{ text: '(Continue the conversation based on the room so far.)' }],
     });
   }
+  return contents;
+}
 
+function buildGrokMessages(
+  messages: MessageItem[],
+  systemPrompt?: string
+): Array<{ role: string; content: string }> {
+  const apiMessages: Array<{ role: string; content: string }> = [];
+  if (systemPrompt) {
+    apiMessages.push({ role: 'system', content: systemPrompt });
+  }
+  for (const m of messages) {
+    apiMessages.push({ role: m.role, content: m.content });
+  }
+  if (apiMessages.filter((m) => m.role !== 'system').length === 0) {
+    throw new Error('No messages to send to Grok.');
+  }
+  return apiMessages;
+}
+
+async function callGemini(
+  apiKey: string,
+  model: string,
+  messages: MessageItem[],
+  systemPrompt?: string
+): Promise<string> {
+  const contents = buildGeminiContents(messages);
   const body: Record<string, unknown> = { contents };
   if (systemPrompt) {
     body.systemInstruction = { parts: [{ text: systemPrompt }] };
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-  const res = await fetchWithTimeout(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey,
-    },
-    body: JSON.stringify(body),
-  });
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(friendlyHttpError('Gemini', res.status, errText));
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(friendlyHttpError('Gemini', res.status, errText));
+    }
+
+    const data = await res.json();
+    if (data?.promptFeedback?.blockReason) {
+      throw new Error(`Gemini blocked the prompt (${data.promptFeedback.blockReason}).`);
+    }
+    const candidate = data?.candidates?.[0];
+    if (!candidate) throw new Error('Gemini returned no candidates.');
+    const text = candidate?.content?.parts
+      ?.map((p: { text?: string }) => p.text ?? '')
+      .join('') as string | undefined;
+    if (!text?.trim()) {
+      throw new Error(
+        candidate.finishReason
+          ? `Gemini returned an empty response (${candidate.finishReason}).`
+          : 'Gemini returned an empty response.'
+      );
+    }
+    return text;
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`Request timed out after ${FETCH_TIMEOUT_MS / 1000}s.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
   }
-
-  const data = await res.json();
-
-  const blockReason = data?.promptFeedback?.blockReason;
-  if (blockReason) {
-    throw new Error(`Gemini blocked the prompt (${blockReason}).`);
-  }
-
-  const candidate = data?.candidates?.[0];
-  if (!candidate) {
-    throw new Error('Gemini returned no candidates.');
-  }
-
-  const finish = candidate.finishReason;
-  const text = candidate?.content?.parts
-    ?.map((p: { text?: string }) => p.text ?? '')
-    .join('') as string | undefined;
-
-  if (!text?.trim()) {
-    throw new Error(
-      finish
-        ? `Gemini returned an empty response (${finish}).`
-        : 'Gemini returned an empty response.'
-    );
-  }
-  return text;
 }
 
 async function callGrok(
@@ -135,42 +141,260 @@ async function callGrok(
   messages: MessageItem[],
   systemPrompt?: string
 ): Promise<string> {
-  const apiMessages: Array<{ role: string; content: string }> = [];
+  const apiMessages = buildGrokMessages(messages, systemPrompt);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    const res = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: apiMessages,
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(friendlyHttpError('Grok', res.status, errText));
+    }
+
+    const data = await res.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (content == null || String(content).trim() === '') {
+      throw new Error('Grok returned an empty response.');
+    }
+    return typeof content === 'string' ? content : String(content);
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`Request timed out after ${FETCH_TIMEOUT_MS / 1000}s.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function streamGemini(
+  apiKey: string,
+  model: string,
+  messages: MessageItem[],
+  systemPrompt?: string
+): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  const contents = buildGeminiContents(messages);
+  const body: Record<string, unknown> = { contents };
   if (systemPrompt) {
-    apiMessages.push({ role: 'system', content: systemPrompt });
-  }
-  for (const m of messages) {
-    apiMessages.push({ role: m.role, content: m.content });
+    body.systemInstruction = { parts: [{ text: systemPrompt }] };
   }
 
-  if (apiMessages.filter((m) => m.role !== 'system').length === 0) {
-    throw new Error('No messages to send to Grok.');
-  }
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
 
-  const res = await fetchWithTimeout('https://api.x.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
+  return new ReadableStream({
+    async start(controller) {
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), FETCH_TIMEOUT_MS);
+      let full = '';
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
+          body: JSON.stringify(body),
+          signal: abort.signal,
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          controller.enqueue(
+            encoder.encode(
+              sseLine({
+                error: friendlyHttpError('Gemini', res.status, errText),
+              })
+            )
+          );
+          controller.close();
+          return;
+        }
+
+        if (!res.body) {
+          controller.enqueue(
+            encoder.encode(sseLine({ error: 'Gemini returned no stream body.' }))
+          );
+          controller.close();
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data:')) continue;
+            const payload = trimmed.slice(5).trim();
+            if (!payload || payload === '[DONE]') continue;
+            try {
+              const json = JSON.parse(payload);
+              const parts = json?.candidates?.[0]?.content?.parts;
+              if (Array.isArray(parts)) {
+                for (const p of parts) {
+                  if (typeof p?.text === 'string' && p.text) {
+                    full += p.text;
+                    controller.enqueue(encoder.encode(sseLine({ text: p.text })));
+                  }
+                }
+              }
+            } catch {
+              // skip partial JSON
+            }
+          }
+        }
+
+        if (!full.trim()) {
+          controller.enqueue(
+            encoder.encode(sseLine({ error: 'Gemini returned an empty stream.' }))
+          );
+        } else {
+          controller.enqueue(
+            encoder.encode(sseLine({ done: true, content: full }))
+          );
+        }
+        controller.close();
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error && err.name === 'AbortError'
+            ? `Request timed out after ${FETCH_TIMEOUT_MS / 1000}s.`
+            : err instanceof Error
+              ? err.message
+              : 'Gemini stream failed.';
+        controller.enqueue(encoder.encode(sseLine({ error: message })));
+        controller.close();
+      } finally {
+        clearTimeout(timer);
+      }
     },
-    body: JSON.stringify({
-      model,
-      messages: apiMessages,
-      stream: false,
-    }),
   });
+}
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(friendlyHttpError('Grok', res.status, errText));
-  }
+function streamGrok(
+  apiKey: string,
+  model: string,
+  messages: MessageItem[],
+  systemPrompt?: string
+): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  const apiMessages = buildGrokMessages(messages, systemPrompt);
 
-  const data = await res.json();
-  const content = data?.choices?.[0]?.message?.content;
-  if (content == null || String(content).trim() === '') {
-    throw new Error('Grok returned an empty response.');
-  }
-  return typeof content === 'string' ? content : String(content);
+  return new ReadableStream({
+    async start(controller) {
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), FETCH_TIMEOUT_MS);
+      let full = '';
+
+      try {
+        const res = await fetch('https://api.x.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: apiMessages,
+            stream: true,
+          }),
+          signal: abort.signal,
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          controller.enqueue(
+            encoder.encode(
+              sseLine({ error: friendlyHttpError('Grok', res.status, errText) })
+            )
+          );
+          controller.close();
+          return;
+        }
+
+        if (!res.body) {
+          controller.enqueue(
+            encoder.encode(sseLine({ error: 'Grok returned no stream body.' }))
+          );
+          controller.close();
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data:')) continue;
+            const payload = trimmed.slice(5).trim();
+            if (!payload || payload === '[DONE]') continue;
+            try {
+              const json = JSON.parse(payload);
+              const delta = json?.choices?.[0]?.delta?.content;
+              if (typeof delta === 'string' && delta) {
+                full += delta;
+                controller.enqueue(encoder.encode(sseLine({ text: delta })));
+              }
+            } catch {
+              // skip
+            }
+          }
+        }
+
+        if (!full.trim()) {
+          controller.enqueue(
+            encoder.encode(sseLine({ error: 'Grok returned an empty stream.' }))
+          );
+        } else {
+          controller.enqueue(
+            encoder.encode(sseLine({ done: true, content: full }))
+          );
+        }
+        controller.close();
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error && err.name === 'AbortError'
+            ? `Request timed out after ${FETCH_TIMEOUT_MS / 1000}s.`
+            : err instanceof Error
+              ? err.message
+              : 'Grok stream failed.';
+        controller.enqueue(encoder.encode(sseLine({ error: message })));
+        controller.close();
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -181,7 +405,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
-  const { provider, apiKey, model, messages, systemPrompt } = body;
+  const { provider, apiKey, model, messages, systemPrompt, stream } = body;
 
   if (provider !== 'gemini' && provider !== 'grok') {
     return NextResponse.json({ error: 'Invalid provider.' }, { status: 400 });
@@ -208,12 +432,43 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (stream) {
+    try {
+      const readable =
+        provider === 'gemini'
+          ? streamGemini(apiKey.trim(), model.trim(), messages, systemPrompt)
+          : streamGrok(apiKey.trim(), model.trim(), messages, systemPrompt);
+
+      return new Response(readable, {
+        headers: {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          Connection: 'keep-alive',
+        },
+      });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to start stream.';
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
+
   try {
     let content: string;
     if (provider === 'gemini') {
-      content = await callGemini(apiKey.trim(), model.trim(), messages, systemPrompt);
+      content = await callGemini(
+        apiKey.trim(),
+        model.trim(),
+        messages,
+        systemPrompt
+      );
     } else {
-      content = await callGrok(apiKey.trim(), model.trim(), messages, systemPrompt);
+      content = await callGrok(
+        apiKey.trim(),
+        model.trim(),
+        messages,
+        systemPrompt
+      );
     }
     return NextResponse.json({ content });
   } catch (err: unknown) {

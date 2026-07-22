@@ -10,6 +10,10 @@ import {
   Loader2,
   Users,
   MessagesSquare,
+  Paperclip,
+  Download,
+  Upload,
+  FileDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -37,6 +41,13 @@ import {
   saveSettings,
   clearLegacyTree,
 } from '@/lib/storage';
+import { extractTextFromFile } from '@/lib/extractFile';
+import {
+  exportRoomAsJson,
+  exportRoomAsMarkdown,
+  parseRoomImport,
+} from '@/lib/exportRoom';
+import { streamProvider } from '@/lib/streamChat';
 import { cn } from '@/lib/utils';
 
 export default function Home() {
@@ -45,12 +56,21 @@ export default function Home() {
   const [input, setInput] = useState('');
   const [speakTarget, setSpeakTarget] = useState<SpeakTarget>('both');
   const [isBusy, setIsBusy] = useState(false);
+  const [attachBusy, setAttachBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
   const roomRef = useRef(room);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast(null), 4000);
+  };
 
   useEffect(() => {
     roomRef.current = room;
@@ -69,69 +89,20 @@ export default function Home() {
     saveRoom(room);
   }, [room, hydrated]);
 
+  const streamLens = room.turns
+    .filter((t) => t.status === 'streaming' || t.status === 'pending')
+    .map((t) => t.content.length)
+    .join(',');
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [room.turns.length, isBusy]);
+  }, [room.turns.length, isBusy, streamLens]);
 
   const handleSaveSettings = (s: SettingsType) => {
     setSettings(s);
     saveSettings(s);
   };
 
-  const callProvider = async (
-    provider: 'gemini' | 'grok',
-    apiKey: string,
-    model: string,
-    messages: Array<{ role: 'user' | 'assistant'; content: string }>,
-    systemPrompt: string
-  ): Promise<string> => {
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        provider,
-        apiKey,
-        model,
-        messages,
-        systemPrompt,
-      }),
-    });
-    let data: { content?: string; error?: string } = {};
-    try {
-      data = await res.json();
-    } catch {
-      throw new Error(`Request failed (${res.status}).`);
-    }
-    if (!res.ok) {
-      throw new Error(data.error || `Request failed (${res.status})`);
-    }
-    if (!data.content) {
-      throw new Error('Empty response from server.');
-    }
-    return data.content;
-  };
-
-  const ensureKeys = (
-    target: SpeakTarget,
-    current: SettingsType
-  ): { ok: true } | { ok: false; reason: string } => {
-    const needGemini = target === 'both' || target === 'gemini';
-    const needGrok = target === 'both' || target === 'grok';
-    if (needGemini && !current.geminiApiKey.trim()) {
-      return { ok: false, reason: 'gemini' };
-    }
-    if (needGrok && !current.grokApiKey.trim()) {
-      return { ok: false, reason: 'grok' };
-    }
-    if (target === 'both') {
-      if (!current.geminiApiKey.trim() && !current.grokApiKey.trim()) {
-        return { ok: false, reason: 'none' };
-      }
-    }
-    return { ok: true };
-  };
-
-  /** Resolve who will actually speak given keys + target */
   const resolveSpeakers = (
     target: SpeakTarget,
     current: SettingsType
@@ -156,7 +127,6 @@ export default function Home() {
   ) => {
     if (speakers.length === 0) return baseRoom;
 
-    // Create pending turns first
     let working = baseRoom;
     const pending: { speaker: 'gemini' | 'grok'; turn: Turn }[] = [];
 
@@ -173,7 +143,6 @@ export default function Home() {
     setRoom(working);
     roomRef.current = working;
 
-    // Exclude all pending ids from context so each model sees the same prior room
     const pendingIds = new Set(pending.map((p) => p.turn.id));
 
     const tasks = pending.map(({ speaker, turn }) => {
@@ -181,16 +150,30 @@ export default function Home() {
         speaker === 'gemini' ? current.geminiApiKey : current.grokApiKey;
       const model =
         speaker === 'gemini' ? current.geminiModel : current.grokModel;
-      // Snapshot room without any of this batch's pending turns
       const messages = buildProviderMessages(working, speaker, pendingIds);
 
-      return callProvider(
-        speaker,
+      return streamProvider({
+        provider: speaker,
         apiKey,
         model,
         messages,
-        systemPromptFor(speaker)
-      )
+        systemPrompt: systemPromptFor(speaker),
+        handlers: {
+          onToken: (chunk) => {
+            setRoom((r) => {
+              const existing = r.turns.find((t) => t.id === turn.id);
+              const nextContent = (existing?.content || '') + chunk;
+              const next = updateTurn(r, turn.id, {
+                content: nextContent,
+                status: 'streaming',
+                error: undefined,
+              });
+              roomRef.current = next;
+              return next;
+            });
+          },
+        },
+      })
         .then((content) => {
           setRoom((r) => {
             const next = updateTurn(r, turn.id, {
@@ -234,15 +217,6 @@ export default function Home() {
       return;
     }
 
-    // For "both", allow partial if only one key set
-    if (speakTarget === 'gemini' || speakTarget === 'grok') {
-      const check = ensureKeys(speakTarget, currentSettings);
-      if (!check.ok) {
-        setSettingsOpen(true);
-        return;
-      }
-    }
-
     const userContent = input.trim();
     setInput('');
     setIsBusy(true);
@@ -262,7 +236,6 @@ export default function Home() {
     }
   };
 
-  /** Ask models to speak again without a new user message (continue / react) */
   const handleInvite = async (target: SpeakTarget) => {
     if (isBusy) return;
     const currentSettings = settings;
@@ -281,20 +254,17 @@ export default function Home() {
 
     setIsBusy(true);
     try {
-      // Nudge: if last turns were already AI, still allow re-invite by appending
-      // a synthetic user cue only when the room would otherwise end mid-AI with no user prompt.
       let base = roomRef.current;
       const hasUser = base.turns.some(
-        (t) => t.speaker === 'user' && t.status === 'complete'
+        (t) =>
+          (t.speaker === 'user' || t.kind === 'document') &&
+          t.status === 'complete'
       );
       if (!hasUser) {
         setIsBusy(false);
         return;
       }
 
-      // Add a brief user-visible system-style note only when inviting cross-talk
-      // without new user text? Prefer silent invite: inject internal cue in messages only.
-      // For transparency, add a small "progress" user system line:
       const inviteNote =
         target === 'both'
           ? 'Both of you: please respond to the conversation so far (including each other if relevant).'
@@ -347,13 +317,27 @@ export default function Home() {
         speaker,
         new Set([turnId])
       );
-      const content = await callProvider(
-        speaker,
+      const content = await streamProvider({
+        provider: speaker,
         apiKey,
         model,
         messages,
-        systemPromptFor(speaker)
-      );
+        systemPrompt: systemPromptFor(speaker),
+        handlers: {
+          onToken: (chunk) => {
+            setRoom((r) => {
+              const existing = r.turns.find((t) => t.id === turnId);
+              const nextContent = (existing?.content || '') + chunk;
+              const next = updateTurn(r, turnId, {
+                content: nextContent,
+                status: 'streaming',
+              });
+              roomRef.current = next;
+              return next;
+            });
+          },
+        },
+      });
       setRoom((r) => {
         const next = updateTurn(r, turnId, {
           content,
@@ -372,6 +356,83 @@ export default function Home() {
       });
     } finally {
       setIsBusy(false);
+    }
+  };
+
+  const handleAttachFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0 || attachBusy || isBusy) return;
+    setAttachBusy(true);
+    try {
+      let working = roomRef.current;
+      for (const file of Array.from(files)) {
+        try {
+          const doc = await extractTextFromFile(file);
+          const turn = createTurn('user', doc.text, {
+            kind: 'document',
+            fileName: doc.fileName,
+            truncated: doc.truncated,
+            status: 'complete',
+          });
+          working = appendTurn(working, turn);
+          setRoom(working);
+          roomRef.current = working;
+          showToast(
+            doc.truncated
+              ? `Attached ${doc.fileName} (truncated)`
+              : `Attached ${doc.fileName}`
+          );
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Attach failed';
+          showToast(`${file.name}: ${msg}`);
+        }
+      }
+    } finally {
+      setAttachBusy(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      inputRef.current?.focus();
+    }
+  };
+
+  const handleExportJson = () => {
+    if (room.turns.length === 0) {
+      showToast('Nothing to export yet.');
+      return;
+    }
+    exportRoomAsJson(room);
+    showToast('Exported JSON');
+  };
+
+  const handleExportMd = () => {
+    if (room.turns.length === 0) {
+      showToast('Nothing to export yet.');
+      return;
+    }
+    exportRoomAsMarkdown(room);
+    showToast('Exported Markdown');
+  };
+
+  const handleImportFile = async (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const imported = parseRoomImport(text);
+      if (
+        roomRef.current.turns.length > 0 &&
+        !window.confirm(
+          'Replace the current room with the imported transcript?'
+        )
+      ) {
+        return;
+      }
+      setRoom(imported);
+      roomRef.current = imported;
+      showToast(`Imported ${imported.turns.length} turns`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Import failed';
+      showToast(msg);
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = '';
     }
   };
 
@@ -401,7 +462,6 @@ export default function Home() {
   const hasChat = room.turns.length > 0;
   const pending = hasPendingTurns(room) || isBusy;
 
-  // Group consecutive AI replies for side-by-side layout when both spoke
   const renderTranscript = () => {
     const nodes: React.ReactNode[] = [];
     let i = 0;
@@ -409,7 +469,7 @@ export default function Home() {
 
     while (i < turns.length) {
       const t = turns[i];
-      if (t.speaker === 'user') {
+      if (t.speaker === 'user' || t.kind === 'document') {
         nodes.push(
           <MessageCard key={t.id} turn={t} onRetry={handleRetry} />
         );
@@ -418,13 +478,16 @@ export default function Home() {
       }
 
       const run: Turn[] = [];
-      while (i < turns.length && turns[i].speaker !== 'user') {
+      while (
+        i < turns.length &&
+        turns[i].speaker !== 'user' &&
+        turns[i].kind !== 'document'
+      ) {
         run.push(turns[i]);
         i += 1;
       }
 
       if (run.length === 2 && run[0].speaker !== run[1].speaker) {
-        // Prefer Gemini left, Grok right when both present
         const ordered = [...run].sort((a, b) => {
           if (a.speaker === 'gemini') return -1;
           if (b.speaker === 'gemini') return 1;
@@ -464,11 +527,11 @@ export default function Home() {
               3Way Lite
             </h1>
             <p className="text-[10px] text-slate-500">
-              You · Gemini · Grok · you control the pace
+              You · Gemini · Grok · files · stream · export
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           <div className="hidden sm:flex items-center gap-1.5">
             <span
               className={cn(
@@ -493,6 +556,48 @@ export default function Home() {
               Grok {grokReady ? '✓' : '—'}
             </span>
           </div>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleExportJson}
+            disabled={!hasChat}
+            className="text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+            aria-label="Export JSON"
+            title="Export room as JSON"
+          >
+            <Download className="h-5 w-5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleExportMd}
+            disabled={!hasChat}
+            className="hidden text-slate-400 hover:bg-slate-800 hover:text-slate-200 sm:inline-flex"
+            aria-label="Export Markdown"
+            title="Export room as Markdown"
+          >
+            <FileDown className="h-5 w-5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => importInputRef.current?.click()}
+            disabled={pending}
+            className="text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+            aria-label="Import room"
+            title="Import room JSON"
+          >
+            <Upload className="h-5 w-5" />
+          </Button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => void handleImportFile(e.target.files)}
+          />
+
           <Button
             variant="ghost"
             size="icon"
@@ -528,14 +633,14 @@ export default function Home() {
                 Three-way room
               </h2>
               <p className="mb-4 max-w-md text-sm text-slate-500">
-                You, Gemini, and Grok share one transcript. You decide who
-                speaks next. Nothing runs until you send or invite a reply.
+                Attach documents as text, stream replies live, and export the
+                room when you need a backup. You still control the pace.
               </p>
               <ol className="mb-6 max-w-sm space-y-1.5 text-left text-xs text-slate-500">
                 <li>1. Add API keys in Settings</li>
-                <li>2. Choose Both / Gemini / Grok</li>
-                <li>3. Send a message — they reply in the shared room</li>
-                <li>4. Use Invite to pull more replies without retyping</li>
+                <li>2. Optional: attach PDF / text files (text is extracted)</li>
+                <li>3. Choose Both / Gemini / Grok and send</li>
+                <li>4. Export JSON anytime to back up the room</li>
               </ol>
               {!geminiReady && !grokReady && (
                 <Button
@@ -554,10 +659,8 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Progress controls + composer */}
       <div className="border-t border-slate-800 bg-slate-900/95 px-4 py-3 backdrop-blur-sm">
         <div className="mx-auto max-w-5xl space-y-3">
-          {/* Who speaks after your next message */}
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] uppercase tracking-wide text-slate-500 mr-1">
               Next reply
@@ -609,6 +712,30 @@ export default function Home() {
           </div>
 
           <div className="relative flex items-end gap-2 rounded-2xl border border-slate-700 bg-slate-800/50 p-2 focus-within:border-slate-600 transition-colors">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".txt,.md,.markdown,.csv,.json,.pdf,.ts,.tsx,.js,.jsx,.py,.go,.rs,.java,.yml,.yaml,.html,.css,.log,.sql,.xml,.toml"
+              className="hidden"
+              onChange={(e) => void handleAttachFiles(e.target.files)}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              disabled={pending || attachBusy}
+              onClick={() => fileInputRef.current?.click()}
+              className="h-10 w-10 shrink-0 text-slate-400 hover:bg-slate-700 hover:text-slate-100"
+              aria-label="Attach file"
+              title="Attach file (text extracted)"
+            >
+              {attachBusy ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Paperclip className="h-5 w-5" />
+              )}
+            </Button>
             <Textarea
               ref={inputRef}
               value={input}
@@ -616,10 +743,10 @@ export default function Home() {
               onKeyDown={handleKeyDown}
               placeholder={
                 speakTarget === 'both'
-                  ? 'Message the room — both AIs will reply…'
+                  ? 'Message the room — both AIs stream replies…'
                   : speakTarget === 'gemini'
-                    ? 'Message the room — Gemini will reply…'
-                    : 'Message the room — Grok will reply…'
+                    ? 'Message the room — Gemini streams…'
+                    : 'Message the room — Grok streams…'
               }
               disabled={pending}
               className="min-h-[44px] max-h-[160px] flex-1 resize-none border-0 bg-transparent px-2 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus-visible:ring-0 focus-visible:ring-offset-0"
@@ -640,11 +767,17 @@ export default function Home() {
             </Button>
           </div>
           <p className="text-center text-[10px] text-slate-600">
-            Enter to send · Shift+Enter newline · Invite continues the room
-            without a new topic
+            Paperclip attaches text/PDF · replies stream live · download exports
+            the room
           </p>
         </div>
       </div>
+
+      {toast && (
+        <div className="pointer-events-none fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full border border-slate-700 bg-slate-800 px-4 py-2 text-xs text-slate-200 shadow-lg">
+          {toast}
+        </div>
+      )}
 
       {settings && (
         <SettingsModal

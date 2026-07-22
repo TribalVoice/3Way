@@ -1,6 +1,6 @@
 'use client';
 
-import { Bot, Loader2, RotateCcw, User } from 'lucide-react';
+import { Bot, FileText, Loader2, RotateCcw, User } from 'lucide-react';
 import { Turn } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -10,6 +10,30 @@ interface MessageCardProps {
 }
 
 export function MessageCard({ turn, onRetry }: MessageCardProps) {
+  if (turn.kind === 'document') {
+    return (
+      <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 shadow-lg">
+        <div className="mb-2 flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-500/20">
+            <FileText className="h-4 w-4 text-amber-400" />
+          </div>
+          <div className="flex min-w-0 flex-col">
+            <span className="text-sm font-semibold text-amber-300">
+              Document
+            </span>
+            <span className="truncate text-[10px] text-slate-500">
+              {turn.fileName || 'file'}
+              {turn.truncated ? ' · truncated' : ''}
+            </span>
+          </div>
+        </div>
+        <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950/40 p-3 text-xs leading-relaxed text-slate-300">
+          {turn.content}
+        </pre>
+      </div>
+    );
+  }
+
   if (turn.speaker === 'user') {
     return (
       <div className="flex justify-end">
@@ -37,6 +61,7 @@ export function MessageCard({ turn, onRetry }: MessageCardProps) {
     ? 'bg-gradient-to-br from-blue-500 to-purple-500'
     : 'bg-slate-700 border border-slate-600';
   const accentLabel = isGemini ? 'text-blue-400' : 'text-slate-300';
+  const isStreaming = turn.status === 'streaming' || turn.status === 'pending';
 
   return (
     <div
@@ -56,8 +81,13 @@ export function MessageCard({ turn, onRetry }: MessageCardProps) {
           <Bot className="h-4 w-4 text-white" />
         </div>
         <div className="flex flex-col">
-          <span className={cn('text-sm font-semibold', accentLabel)}>
-            {isGemini ? 'Gemini' : 'Grok'}
+          <span className="flex items-center gap-1.5 text-sm font-semibold">
+            <span className={accentLabel}>
+              {isGemini ? 'Gemini' : 'Grok'}
+            </span>
+            {isStreaming && (
+              <Loader2 className="h-3 w-3 animate-spin text-slate-400" />
+            )}
           </span>
           {turn.modelName && (
             <span className="text-[10px] text-slate-500">{turn.modelName}</span>
@@ -65,15 +95,22 @@ export function MessageCard({ turn, onRetry }: MessageCardProps) {
         </div>
       </div>
 
-      {turn.status === 'pending' ? (
+      {turn.status === 'pending' && !turn.content ? (
         <div className="flex items-center gap-2 py-4 text-slate-400">
           <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="text-sm">Generating response…</span>
+          <span className="text-sm">Starting…</span>
         </div>
       ) : turn.status === 'error' ? (
         <div className="space-y-3">
+          {turn.content ? (
+            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-300 opacity-70">
+              {turn.content}
+            </p>
+          ) : null}
           <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
-            <p className="text-sm text-red-300">{turn.error || 'Request failed.'}</p>
+            <p className="text-sm text-red-300">
+              {turn.error || 'Request failed.'}
+            </p>
           </div>
           {onRetry && (
             <button
@@ -89,6 +126,9 @@ export function MessageCard({ turn, onRetry }: MessageCardProps) {
       ) : (
         <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-200">
           {turn.content}
+          {isStreaming && turn.content ? (
+            <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-slate-400 align-middle" />
+          ) : null}
         </p>
       )}
     </div>

@@ -2,14 +2,13 @@
 
 User-paced three-way chat: **you**, **Gemini**, and **Grok** share one room transcript. You control who speaks next.
 
-This is the **Lite** milestone: text room, BYOK, dual providers, invite/continue controls. File attachments are planned for a later version.
-
 ## Features
 
 - Shared linear room (not tournament branching)
-- Send a message and choose **Both / Gemini / Grok** to reply
-- **Invite** selected model(s) to speak again without retyping
-- Full transcript context with named speakers and system prompts
+- **Both / Gemini / Grok** reply targets + **Invite** to continue
+- **Streaming** replies (live tokens)
+- **Attach files** → extract text (PDF, Markdown, code, CSV, …) → inject into the room
+- **Export / import** room as JSON; export Markdown for reading
 - BYOK: API keys stored in your browser only
 - Retry failed turns; clear room with confirm
 
@@ -27,6 +26,16 @@ Open [http://localhost:3000](http://localhost:3000), open **Settings**, and add:
 
 Default models: `gemini-3.6-flash` and `grok-4.5` (custom names supported).
 Older Gemini IDs (e.g. `gemini-2.5-flash`) are auto-upgraded for new API keys.
+
+## Files
+
+Paperclip attaches supported files. Text is extracted locally (PDFs via pdf.js). Large docs are truncated (~80k characters). Scanned image-only PDFs are not supported yet.
+
+## Export / import
+
+- **Download** icon → JSON backup of the room (re-importable)
+- **Markdown** icon (desktop) → human-readable export
+- **Upload** icon → restore a previous JSON export (replaces current room)
 
 ## Deploy
 
