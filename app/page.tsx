@@ -15,6 +15,7 @@ import {
   CircleHelp,
   Monitor,
   Smartphone,
+  Coffee,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -27,6 +28,11 @@ import {
   SpeakTarget,
   Turn,
 } from '@/lib/types';
+import {
+  BUY_ME_A_COFFEE_URL,
+  SUPPORT_LABEL,
+  isSupportEnabled,
+} from '@/lib/support';
 import {
   createEmptyRoom,
   createTurn,
@@ -605,6 +611,24 @@ export default function Home() {
             onChange={(e) => void handleImportFile(e.target.files)}
           />
 
+          {isSupportEnabled() && (
+            <Button
+              variant="ghost"
+              size="icon"
+              asChild
+              className="text-amber-500/90 hover:bg-amber-500/10 hover:text-amber-400"
+            >
+              <a
+                href={BUY_ME_A_COFFEE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={SUPPORT_LABEL}
+                title={SUPPORT_LABEL}
+              >
+                <Coffee className="h-5 w-5" />
+              </a>
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -719,6 +743,22 @@ export default function Home() {
                   <CircleHelp className="h-4 w-4 mr-2" />
                   Getting started
                 </Button>
+                {isSupportEnabled() && (
+                  <Button
+                    variant="outline"
+                    asChild
+                    className="border-amber-500/30 bg-amber-500/5 text-amber-200 hover:bg-amber-500/10 hover:text-amber-100"
+                  >
+                    <a
+                      href={BUY_ME_A_COFFEE_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Coffee className="h-4 w-4 mr-2" />
+                      {SUPPORT_LABEL}
+                    </a>
+                  </Button>
+                )}
               </div>
             </div>
           ) : (
@@ -838,6 +878,19 @@ export default function Home() {
           <p className="text-center text-[10px] text-slate-600">
             Paperclip attaches text/PDF · replies stream live · download exports
             the room
+            {isSupportEnabled() && (
+              <>
+                {' · '}
+                <a
+                  href={BUY_ME_A_COFFEE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-amber-600/80 hover:text-amber-500 underline-offset-2 hover:underline"
+                >
+                  {SUPPORT_LABEL}
+                </a>
+              </>
+            )}
           </p>
         </div>
       </div>

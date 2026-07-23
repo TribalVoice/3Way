@@ -72,6 +72,15 @@ Paperclip attaches supported files. Text is extracted locally (PDFs via pdf.js).
 
 Configured for Netlify (`netlify.toml` + `@netlify/plugin-nextjs`).
 
+## Support (Buy me a coffee)
+
+Optional in-app tip link. Set your page URL in either place:
+
+1. `lib/support.ts` → `BUY_ME_A_COFFEE_URL`, or  
+2. Env: `NEXT_PUBLIC_BUY_ME_A_COFFEE_URL=https://www.buymeacoffee.com/yourname`
+
+When empty, support buttons stay hidden. When set, a coffee icon appears in the header, empty state, footer, and Getting started.
+
 ## Note
 
 This is a personal BYOK tool. The `/api/chat` route proxies your key to the provider — do not expose a public deployment without rate limits if you care about abuse of the relay endpoint.

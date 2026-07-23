@@ -8,6 +8,7 @@ import {
   Download,
   MessagesSquare,
   ExternalLink,
+  Coffee,
 } from 'lucide-react';
 import {
   Dialog,
@@ -16,6 +17,11 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  BUY_ME_A_COFFEE_URL,
+  SUPPORT_LABEL,
+  isSupportEnabled,
+} from '@/lib/support';
 
 interface GettingStartedProps {
   open: boolean;
@@ -181,6 +187,30 @@ export function GettingStarted({
               </li>
             </ul>
           </section>
+
+          {isSupportEnabled() && (
+            <section className="space-y-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+              <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-200/90">
+                <Coffee className="h-3.5 w-3.5" />
+                Support
+              </h3>
+              <p className="text-slate-400">
+                3Way Lite is free to use with your own API keys. If it helps you,
+                you can optionally {SUPPORT_LABEL.toLowerCase()} — no account
+                required in the app, and nothing is locked behind payment.
+              </p>
+              <a
+                href={BUY_ME_A_COFFEE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-300 hover:text-amber-200"
+              >
+                <Coffee className="h-4 w-4" />
+                {SUPPORT_LABEL}
+                <ExternalLink className="h-3 w-3 opacity-70" />
+              </a>
+            </section>
+          )}
         </div>
       </DialogContent>
     </Dialog>
