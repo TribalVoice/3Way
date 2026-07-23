@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Send,
   Settings,
@@ -16,9 +16,14 @@ import {
   Monitor,
   Smartphone,
   Coffee,
+  Search,
+  ChevronUp,
+  ChevronDown,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { SettingsModal } from '@/components/SettingsModal';
 import { MessageCard } from '@/components/MessageCard';
 import { GettingStarted } from '@/components/GettingStarted';
@@ -69,9 +74,13 @@ export default function Home() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [matchIndex, setMatchIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const roomRef = useRef(room);
@@ -471,6 +480,74 @@ export default function Home() {
   const hasChat = room.turns.length > 0;
   const pending = hasPendingTurns(room) || isBusy;
 
+  const searchMatches = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [] as string[];
+    return room.turns
+      .filter((t) => {
+        if (t.content.toLowerCase().includes(q)) return true;
+        if (t.fileName?.toLowerCase().includes(q)) return true;
+        if (t.error?.toLowerCase().includes(q)) return true;
+        return false;
+      })
+      .map((t) => t.id);
+  }, [room.turns, searchQuery]);
+
+  useEffect(() => {
+    setMatchIndex(0);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (!searchOpen || searchMatches.length === 0) return;
+    const id = searchMatches[Math.min(matchIndex, searchMatches.length - 1)];
+    const el = document.getElementById(`turn-${id}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [matchIndex, searchMatches, searchOpen]);
+
+  useEffect(() => {
+    if (searchOpen) {
+      window.setTimeout(() => searchInputRef.current?.focus(), 50);
+    }
+  }, [searchOpen]);
+
+  // Ctrl/Cmd+F opens room search (avoid only fighting browser when open)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f' && hasChat) {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+      if (e.key === 'Escape' && searchOpen) {
+        setSearchOpen(false);
+        setSearchQuery('');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [hasChat, searchOpen]);
+
+  const goPrevMatch = () => {
+    if (searchMatches.length === 0) return;
+    setMatchIndex((i) => (i - 1 + searchMatches.length) % searchMatches.length);
+  };
+
+  const goNextMatch = () => {
+    if (searchMatches.length === 0) return;
+    setMatchIndex((i) => (i + 1) % searchMatches.length);
+  };
+
+  const activeMatchId =
+    searchMatches.length > 0
+      ? searchMatches[Math.min(matchIndex, searchMatches.length - 1)]
+      : null;
+
+  const cardProps = (t: Turn) => ({
+    turn: t,
+    onRetry: handleRetry,
+    highlightQuery: searchQuery,
+    isActiveMatch: activeMatchId === t.id,
+  });
+
   const renderTranscript = () => {
     const nodes: React.ReactNode[] = [];
     let i = 0;
@@ -479,9 +556,7 @@ export default function Home() {
     while (i < turns.length) {
       const t = turns[i];
       if (t.speaker === 'user' || t.kind === 'document') {
-        nodes.push(
-          <MessageCard key={t.id} turn={t} onRetry={handleRetry} />
-        );
+        nodes.push(<MessageCard key={t.id} {...cardProps(t)} />);
         i += 1;
         continue;
       }
@@ -508,15 +583,13 @@ export default function Home() {
             className="grid gap-3 md:grid-cols-2"
           >
             {ordered.map((ai) => (
-              <MessageCard key={ai.id} turn={ai} onRetry={handleRetry} />
+              <MessageCard key={ai.id} {...cardProps(ai)} />
             ))}
           </div>
         );
       } else {
         for (const ai of run) {
-          nodes.push(
-            <MessageCard key={ai.id} turn={ai} onRetry={handleRetry} />
-          );
+          nodes.push(<MessageCard key={ai.id} {...cardProps(ai)} />);
         }
       }
     }
@@ -570,6 +643,20 @@ export default function Home() {
             </span>
           </div>
 
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSearchOpen((o) => !o)}
+            disabled={!hasChat}
+            className={cn(
+              'text-slate-400 hover:bg-slate-800 hover:text-slate-200',
+              searchOpen && 'bg-slate-800 text-sky-400'
+            )}
+            aria-label="Search room"
+            title="Search room (Ctrl+F)"
+          >
+            <Search className="h-5 w-5" />
+          </Button>
           <Button
             variant="ghost"
             size="icon"
@@ -662,6 +749,73 @@ export default function Home() {
           )}
         </div>
       </header>
+
+      {searchOpen && hasChat && (
+        <div className="border-b border-slate-800 bg-slate-900/95 px-4 py-2">
+          <div className="mx-auto flex max-w-5xl items-center gap-2">
+            <Search className="h-4 w-4 shrink-0 text-slate-500" />
+            <Input
+              ref={searchInputRef}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (e.shiftKey) goPrevMatch();
+                  else goNextMatch();
+                }
+              }}
+              placeholder="Search this room…"
+              className="h-9 border-slate-700 bg-slate-800/80 text-sm text-slate-100 placeholder:text-slate-600"
+            />
+            <span className="shrink-0 text-[11px] tabular-nums text-slate-500">
+              {searchQuery.trim()
+                ? searchMatches.length === 0
+                  ? '0'
+                  : `${matchIndex + 1}/${searchMatches.length}`
+                : '—'}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 text-slate-400"
+              onClick={goPrevMatch}
+              disabled={searchMatches.length === 0}
+              title="Previous match"
+              aria-label="Previous match"
+            >
+              <ChevronUp className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 text-slate-400"
+              onClick={goNextMatch}
+              disabled={searchMatches.length === 0}
+              title="Next match"
+              aria-label="Next match"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 text-slate-400"
+              onClick={() => {
+                setSearchOpen(false);
+                setSearchQuery('');
+              }}
+              title="Close search"
+              aria-label="Close search"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
         <div className="mx-auto max-w-5xl space-y-4">
