@@ -17,14 +17,21 @@ export const metadata: Metadata = {
     title: '3Way Lite',
   },
   icons: {
-    icon: '/icon-192.png',
+    icon: [
+      { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+      { url: '/icon.ico', sizes: 'any' },
+    ],
     apple: '/icon-192.png',
+    shortcut: '/icon.ico',
   },
   openGraph: {
     title: '3Way Lite · You × Gemini × Grok',
     description:
       'A user-paced three-way chat room with you, Gemini, and Grok sharing one transcript.',
     type: 'website',
+    images: [{ url: '/icon-512.png', width: 512, height: 512, alt: '3Way Lite' }],
   },
 };
 
@@ -41,6 +48,9 @@ export default function RootLayout({
           name="viewport"
           content="width=device-width, initial-scale=1"
         />
+        <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+        <link rel="icon" href="/icon.ico" sizes="any" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body

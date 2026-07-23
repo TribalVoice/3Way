@@ -6,9 +6,7 @@ import {
   Settings,
   Trash2,
   Bot,
-  MessageSquare,
   Loader2,
-  Users,
   MessagesSquare,
   Paperclip,
   Download,
@@ -524,9 +522,13 @@ export default function Home() {
     <div className="flex h-[100dvh] flex-col bg-slate-900 text-slate-100">
       <header className="flex items-center justify-between border-b border-slate-800 bg-slate-900/90 px-4 py-3 backdrop-blur-sm">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 via-purple-500 to-slate-600 shadow-lg">
-            <Users className="h-5 w-5 text-white" />
-          </div>
+          <img
+            src="/icon-192.png"
+            alt="3Way Lite"
+            width={36}
+            height={36}
+            className="h-9 w-9 rounded-xl shadow-lg ring-1 ring-slate-700/80"
+          />
           <div>
             <h1 className="text-base font-bold tracking-tight text-slate-100">
               3Way Lite
@@ -641,9 +643,13 @@ export default function Home() {
         <div className="mx-auto max-w-5xl space-y-4">
           {!hasChat ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 ring-1 ring-slate-700">
-                <MessageSquare className="h-8 w-8 text-slate-400" />
-              </div>
+              <img
+                src="/icon-512.png"
+                alt="3Way Lite"
+                width={72}
+                height={72}
+                className="mb-4 h-[72px] w-[72px] rounded-2xl shadow-lg ring-1 ring-slate-700"
+              />
               <h2 className="mb-2 text-xl font-semibold text-slate-200">
                 Three-way room
               </h2>
