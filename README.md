@@ -10,22 +10,53 @@ User-paced three-way chat: **you**, **Gemini**, and **Grok** share one room tran
 - **Attach files** → extract text (PDF, Markdown, code, CSV, …) → inject into the room
 - **Export / import** room as JSON; export Markdown for reading
 - BYOK: API keys stored in your browser only
-- Retry failed turns; clear room with confirm
+- In-app **Getting started** help (? icon)
+- Windows **launcher** + desktop shortcut scripts
 
-## Setup
+## Setup (first time)
+
+1. Install [Node.js LTS](https://nodejs.org)
+2. Clone or download this repo
+3. In the project folder:
 
 ```bash
 npm install
+```
+
+4. Add API keys in the app Settings:
+   - [Google AI Studio](https://aistudio.google.com/apikey) (Gemini)
+   - [xAI Console](https://console.x.ai/) (Grok)
+
+Default models: `gemini-3.6-flash` and `grok-4.5` (custom names supported).
+
+## Launch on Windows (desktop icon)
+
+After `npm install` has been run once:
+
+| File | Purpose |
+|------|---------|
+| `launch-3way.cmd` | Starts the server and opens http://localhost:3000 |
+| `create-desktop-shortcut.cmd` | Creates a **3Way Lite** icon on your Desktop |
+
+Double-click the Desktop shortcut anytime. **Keep the console window open** while you use the app. Close it (or Ctrl+C) to stop the server.
+
+## Launch (any platform, terminal)
+
+```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000), open **Settings**, and add:
+Open [http://localhost:3000](http://localhost:3000).
 
-- [Google AI Studio](https://aistudio.google.com/apikey) Gemini API key
-- [xAI Console](https://console.x.ai/) Grok API key
+## Android & iPhone (home screen)
 
-Default models: `gemini-3.6-flash` and `grok-4.5` (custom names supported).
-Older Gemini IDs (e.g. `gemini-2.5-flash`) are auto-upgraded for new API keys.
+There is no App Store / Play Store package. The app is a **web app** you can pin:
+
+1. Run it on a **hosted URL** (e.g. Netlify), **or** keep the PC server running and open `http://YOUR-PC-IP:3000` on the same Wi‑Fi.
+2. **Android (Chrome):** menu ⋮ → *Install app* / *Add to Home screen*
+3. **iPhone (Safari):** Share → *Add to Home Screen*
+
+You still enter API keys in Settings on each browser/device (local storage is per device).
 
 ## Files
 

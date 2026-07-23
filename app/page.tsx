@@ -14,11 +14,15 @@ import {
   Download,
   Upload,
   FileDown,
+  CircleHelp,
+  Monitor,
+  Smartphone,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { SettingsModal } from '@/components/SettingsModal';
 import { MessageCard } from '@/components/MessageCard';
+import { GettingStarted } from '@/components/GettingStarted';
 import {
   Settings as SettingsType,
   Room,
@@ -58,6 +62,7 @@ export default function Home() {
   const [isBusy, setIsBusy] = useState(false);
   const [attachBusy, setAttachBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -601,6 +606,16 @@ export default function Home() {
           <Button
             variant="ghost"
             size="icon"
+            onClick={() => setHelpOpen(true)}
+            className="text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+            aria-label="Getting started"
+            title="Getting started"
+          >
+            <CircleHelp className="h-5 w-5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => setSettingsOpen(true)}
             className="text-slate-400 hover:bg-slate-800 hover:text-slate-200"
             aria-label="Settings"
@@ -625,32 +640,80 @@ export default function Home() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
         <div className="mx-auto max-w-5xl space-y-4">
           {!hasChat ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="flex flex-col items-center justify-center py-12 text-center">
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 ring-1 ring-slate-700">
                 <MessageSquare className="h-8 w-8 text-slate-400" />
               </div>
               <h2 className="mb-2 text-xl font-semibold text-slate-200">
                 Three-way room
               </h2>
-              <p className="mb-4 max-w-md text-sm text-slate-500">
-                Attach documents as text, stream replies live, and export the
-                room when you need a backup. You still control the pace.
+              <p className="mb-5 max-w-md text-sm text-slate-500">
+                You, Gemini, and Grok share one transcript. Attach docs as text,
+                stream replies, and export backups. You control the pace.
               </p>
-              <ol className="mb-6 max-w-sm space-y-1.5 text-left text-xs text-slate-500">
-                <li>1. Add API keys in Settings</li>
-                <li>2. Optional: attach PDF / text files (text is extracted)</li>
-                <li>3. Choose Both / Gemini / Grok and send</li>
-                <li>4. Export JSON anytime to back up the room</li>
-              </ol>
-              {!geminiReady && !grokReady && (
+
+              <div className="mb-6 w-full max-w-md space-y-3 text-left">
+                <div className="rounded-xl border border-slate-800 bg-slate-800/40 p-3">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    First-time setup
+                  </p>
+                  <ol className="space-y-1.5 text-xs text-slate-500">
+                    <li>1. Open Settings and paste Gemini and/or Grok API keys</li>
+                    <li>2. Optional: paperclip to attach PDF or text files</li>
+                    <li>3. Choose Both / Gemini / Grok, then send a message</li>
+                    <li>4. Export JSON anytime to back up the room</li>
+                  </ol>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-xl border border-slate-800 bg-slate-800/30 p-3">
+                    <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-slate-300">
+                      <Monitor className="h-3.5 w-3.5 text-sky-400" />
+                      Windows desktop
+                    </p>
+                    <p className="text-[11px] leading-relaxed text-slate-500">
+                      After Node.js is installed, run{' '}
+                      <span className="text-slate-400">create-desktop-shortcut.cmd</span>{' '}
+                      once, then double-click{' '}
+                      <span className="text-slate-400">3Way Lite</span> on the
+                      Desktop. Or use{' '}
+                      <span className="text-slate-400">launch-3way.cmd</span>.
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-800 bg-slate-800/30 p-3">
+                    <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-slate-300">
+                      <Smartphone className="h-3.5 w-3.5 text-sky-400" />
+                      Android &amp; iPhone
+                    </p>
+                    <p className="text-[11px] leading-relaxed text-slate-500">
+                      Open this site in Chrome or Safari, then{' '}
+                      <span className="text-slate-400">Add to Home Screen</span>{' '}
+                      / Install app. Needs a hosted URL or your PC server on the
+                      same Wi‑Fi.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {!geminiReady && !grokReady && (
+                  <Button
+                    onClick={() => setSettingsOpen(true)}
+                    className="bg-sky-600 hover:bg-sky-500 text-white"
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Configure API Keys
+                  </Button>
+                )}
                 <Button
-                  onClick={() => setSettingsOpen(true)}
-                  className="bg-sky-600 hover:bg-sky-500 text-white"
+                  variant="outline"
+                  onClick={() => setHelpOpen(true)}
+                  className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800 hover:text-slate-100"
                 >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Configure API Keys
+                  <CircleHelp className="h-4 w-4 mr-2" />
+                  Getting started
                 </Button>
-              )}
+              </div>
             </div>
           ) : (
             renderTranscript()
@@ -787,6 +850,12 @@ export default function Home() {
           onSave={handleSaveSettings}
         />
       )}
+
+      <GettingStarted
+        open={helpOpen}
+        onOpenChange={setHelpOpen}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
     </div>
   );
 }
