@@ -1,4 +1,11 @@
-export type Speaker = 'user' | 'gemini' | 'grok';
+/** Backend API providers */
+export type ProviderId = 'gemini' | 'grok' | 'claude';
+
+/** Room speakers: user + two configurable seats */
+export type SeatId = 'a' | 'b';
+
+/** Legacy speakers kept so old transcripts still render */
+export type Speaker = 'user' | SeatId | 'gemini' | 'grok';
 
 export type TurnStatus = 'pending' | 'streaming' | 'complete' | 'error';
 
@@ -12,35 +19,48 @@ export interface Turn {
   modelName?: string;
   status: TurnStatus;
   error?: string;
-  /** message = normal chat; document = extracted file text */
   kind?: TurnKind;
   fileName?: string;
   truncated?: boolean;
+  /** Provider used when this AI turn was created */
+  provider?: ProviderId;
+  /** Human label at send time, e.g. "Claude" or "Gemini" */
+  displayName?: string;
 }
 
 export interface Room {
   turns: Turn[];
-  /** Optional label for exports */
   title?: string;
   exportedAt?: number;
 }
 
-export interface Settings {
-  geminiApiKey: string;
-  grokApiKey: string;
-  geminiModel: string;
-  grokModel: string;
+export interface SeatConfig {
+  provider: ProviderId;
+  apiKey: string;
+  model: string;
 }
 
-export const DEFAULT_SETTINGS: Settings = {
-  geminiApiKey: '',
-  grokApiKey: '',
-  geminiModel: 'gemini-3.6-flash',
-  grokModel: 'grok-4.5',
-};
+export interface Settings {
+  seatA: SeatConfig;
+  seatB: SeatConfig;
+}
 
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
 export const DEFAULT_GROK_MODEL = 'grok-4.5';
+export const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-4-5';
+
+export const DEFAULT_SETTINGS: Settings = {
+  seatA: {
+    provider: 'gemini',
+    apiKey: '',
+    model: DEFAULT_GEMINI_MODEL,
+  },
+  seatB: {
+    provider: 'grok',
+    apiKey: '',
+    model: DEFAULT_GROK_MODEL,
+  },
+};
 
 /** Max characters of extracted text kept per file */
 export const MAX_DOCUMENT_CHARS = 80_000;
@@ -76,7 +96,17 @@ export const GROK_MODEL_OPTIONS = [
   'grok-3',
 ];
 
-export type SpeakTarget = 'both' | 'gemini' | 'grok';
+export const CLAUDE_MODEL_OPTIONS = [
+  'claude-sonnet-4-5',
+  'claude-sonnet-4-0',
+  'claude-opus-4-5',
+  'claude-opus-4-1',
+  'claude-haiku-4-5',
+  'claude-3-5-haiku-latest',
+  'claude-3-5-sonnet-latest',
+];
+
+export type SpeakTarget = 'both' | SeatId;
 
 export const ROOM_EXPORT_VERSION = 1;
 

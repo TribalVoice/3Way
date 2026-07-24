@@ -11,14 +11,13 @@ import {
   User,
 } from 'lucide-react';
 import { Turn } from '@/lib/types';
+import { turnDisplayName } from '@/lib/providers';
 import { cn } from '@/lib/utils';
 
 interface MessageCardProps {
   turn: Turn;
   onRetry?: (id: string) => void;
-  /** Case-insensitive substring to highlight */
   highlightQuery?: string;
-  /** Emphasize when this turn is the active search hit */
   isActiveMatch?: boolean;
 }
 
@@ -32,9 +31,7 @@ function highlightText(text: string, query: string): React.ReactNode {
   let idx = lower.indexOf(needle, start);
   let key = 0;
   while (idx !== -1) {
-    if (idx > start) {
-      parts.push(text.slice(start, idx));
-    }
+    if (idx > start) parts.push(text.slice(start, idx));
     parts.push(
       <mark
         key={`h-${key++}`}
@@ -69,7 +66,6 @@ function CopyButton({
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Fallback for older browsers / restricted contexts
       try {
         const ta = document.createElement('textarea');
         ta.value = text;
@@ -110,6 +106,38 @@ function CopyButton({
       <span className="hidden sm:inline">{copied ? 'Copied' : 'Copy'}</span>
     </button>
   );
+}
+
+function seatAccent(turn: Turn): {
+  bg: string;
+  border: string;
+  icon: string;
+  label: string;
+} {
+  const name = turnDisplayName(turn).toLowerCase();
+  if (name.includes('gemini') || turn.provider === 'gemini') {
+    return {
+      bg: 'from-blue-500/10 to-purple-500/10',
+      border: 'border-blue-500/30',
+      icon: 'bg-gradient-to-br from-blue-500 to-purple-500',
+      label: 'text-blue-400',
+    };
+  }
+  if (name.includes('claude') || turn.provider === 'claude') {
+    return {
+      bg: 'from-orange-500/10 to-amber-600/10',
+      border: 'border-orange-500/30',
+      icon: 'bg-gradient-to-br from-orange-500 to-amber-700',
+      label: 'text-orange-300',
+    };
+  }
+  // Grok / default seat B slate
+  return {
+    bg: 'from-slate-700/30 to-slate-800/30',
+    border: 'border-slate-600/40',
+    icon: 'bg-slate-700 border border-slate-600',
+    label: 'text-slate-300',
+  };
 }
 
 export function MessageCard({
@@ -154,10 +182,7 @@ export function MessageCard({
 
   if (turn.speaker === 'user') {
     return (
-      <div
-        id={`turn-${turn.id}`}
-        className={cn('flex justify-end scroll-mt-24', isActiveMatch && '')}
-      >
+      <div id={`turn-${turn.id}`} className="flex justify-end scroll-mt-24">
         <div
           className={cn(
             'max-w-[85%] rounded-2xl rounded-br-sm bg-sky-600/90 px-4 py-3 text-slate-50 shadow-lg shadow-sky-900/20',
@@ -177,18 +202,9 @@ export function MessageCard({
     );
   }
 
-  const isGemini = turn.speaker === 'gemini';
-  const accentBg = isGemini
-    ? 'from-blue-500/10 to-purple-500/10'
-    : 'from-slate-700/30 to-slate-800/30';
-  const accentBorder = isGemini
-    ? 'border-blue-500/30'
-    : 'border-slate-600/40';
-  const accentIcon = isGemini
-    ? 'bg-gradient-to-br from-blue-500 to-purple-500'
-    : 'bg-slate-700 border border-slate-600';
-  const accentLabel = isGemini ? 'text-blue-400' : 'text-slate-300';
+  const accent = seatAccent(turn);
   const isStreaming = turn.status === 'streaming' || turn.status === 'pending';
+  const name = turnDisplayName(turn);
   const copyText =
     turn.status === 'error' && turn.error
       ? [turn.content, turn.error].filter(Boolean).join('\n\n')
@@ -199,8 +215,8 @@ export function MessageCard({
       id={`turn-${turn.id}`}
       className={cn(
         'rounded-2xl rounded-tl-sm border bg-gradient-to-br p-4 shadow-lg scroll-mt-24',
-        accentBg,
-        accentBorder,
+        accent.bg,
+        accent.border,
         isActiveMatch && 'ring-2 ring-amber-400/70'
       )}
     >
@@ -208,16 +224,14 @@ export function MessageCard({
         <div
           className={cn(
             'flex h-7 w-7 items-center justify-center rounded-md',
-            accentIcon
+            accent.icon
           )}
         >
           <Bot className="h-4 w-4 text-white" />
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="flex items-center gap-1.5 text-sm font-semibold">
-            <span className={accentLabel}>
-              {isGemini ? 'Gemini' : 'Grok'}
-            </span>
+            <span className={accent.label}>{name}</span>
             {isStreaming && (
               <Loader2 className="h-3 w-3 animate-spin text-slate-400" />
             )}

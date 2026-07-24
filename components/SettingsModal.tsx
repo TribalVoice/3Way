@@ -1,7 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, KeyRound, Bot, Save, Check, ChevronDown } from 'lucide-react';
+import {
+  Eye,
+  EyeOff,
+  KeyRound,
+  Bot,
+  Save,
+  Check,
+  ChevronDown,
+} from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -17,9 +25,15 @@ import { Separator } from '@/components/ui/separator';
 import {
   Settings as SettingsType,
   DEFAULT_SETTINGS,
-  GEMINI_MODEL_OPTIONS,
-  GROK_MODEL_OPTIONS,
+  ProviderId,
+  SeatConfig,
 } from '@/lib/types';
+import {
+  PROVIDER_OPTIONS,
+  modelOptionsFor,
+  defaultModelFor,
+  providerLabel,
+} from '@/lib/providers';
 
 interface SettingsModalProps {
   open: boolean;
@@ -28,42 +42,169 @@ interface SettingsModalProps {
   onSave: (settings: SettingsType) => void;
 }
 
+function SeatEditor({
+  title,
+  seat,
+  onChange,
+}: {
+  title: string;
+  seat: SeatConfig;
+  onChange: (seat: SeatConfig) => void;
+}) {
+  const [showKey, setShowKey] = useState(false);
+  const options = modelOptionsFor(seat.provider);
+  const [custom, setCustom] = useState(!options.includes(seat.model));
+  const meta = PROVIDER_OPTIONS.find((p) => p.id === seat.provider);
+
+  useEffect(() => {
+    setCustom(!modelOptionsFor(seat.provider).includes(seat.model));
+  }, [seat.provider, seat.model]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-700 border border-slate-600">
+          <Bot className="h-4 w-4 text-slate-200" />
+        </div>
+        <span className="text-sm font-semibold text-slate-200">{title}</span>
+        <span className="text-[10px] text-slate-500">
+          → {providerLabel(seat.provider)}
+        </span>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs text-slate-400">Provider</Label>
+        <div className="relative">
+          <select
+            value={seat.provider}
+            onChange={(e) => {
+              const provider = e.target.value as ProviderId;
+              setCustom(false);
+              onChange({
+                provider,
+                apiKey: seat.apiKey,
+                model: defaultModelFor(provider),
+              });
+            }}
+            className="h-10 w-full appearance-none rounded-md border border-slate-700 bg-slate-800 px-3 pr-8 text-sm text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+          >
+            {PROVIDER_OPTIONS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs text-slate-400">API Key</Label>
+        <div className="relative">
+          <Input
+            type={showKey ? 'text' : 'password'}
+            value={seat.apiKey}
+            onChange={(e) => onChange({ ...seat, apiKey: e.target.value })}
+            placeholder={meta?.keyPlaceholder || 'API key'}
+            className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600 pr-10"
+            autoComplete="off"
+          />
+          <button
+            type="button"
+            onClick={() => setShowKey((s) => !s)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+          >
+            {showKey ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-xs text-slate-400">Model</Label>
+        {custom ? (
+          <Input
+            type="text"
+            value={seat.model}
+            onChange={(e) => onChange({ ...seat, model: e.target.value })}
+            placeholder={defaultModelFor(seat.provider)}
+            className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600"
+          />
+        ) : (
+          <div className="relative">
+            <select
+              value={
+                options.includes(seat.model)
+                  ? seat.model
+                  : options[0] || defaultModelFor(seat.provider)
+              }
+              onChange={(e) => onChange({ ...seat, model: e.target.value })}
+              className="h-10 w-full appearance-none rounded-md border border-slate-700 bg-slate-800 px-3 pr-8 text-sm text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+            >
+              {options.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            if (custom) {
+              setCustom(false);
+              onChange({
+                ...seat,
+                model: options[0] || defaultModelFor(seat.provider),
+              });
+            } else {
+              setCustom(true);
+            }
+          }}
+          className="text-[10px] text-sky-400 hover:text-sky-300"
+        >
+          {custom ? 'Use dropdown' : 'Enter custom model name'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function SettingsModal({
   open,
   onOpenChange,
   settings,
   onSave,
 }: SettingsModalProps) {
-  const [geminiApiKey, setGeminiApiKey] = useState('');
-  const [grokApiKey, setGrokApiKey] = useState('');
-  const [geminiModel, setGeminiModel] = useState('');
-  const [grokModel, setGrokModel] = useState('');
-  const [geminiCustom, setGeminiCustom] = useState(false);
-  const [grokCustom, setGrokCustom] = useState(false);
-  const [showGeminiKey, setShowGeminiKey] = useState(false);
-  const [showGrokKey, setShowGrokKey] = useState(false);
+  const [seatA, setSeatA] = useState<SeatConfig>(DEFAULT_SETTINGS.seatA);
+  const [seatB, setSeatB] = useState<SeatConfig>(DEFAULT_SETTINGS.seatB);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setGeminiApiKey(settings.geminiApiKey);
-      setGrokApiKey(settings.grokApiKey);
-      const gModel = settings.geminiModel || DEFAULT_SETTINGS.geminiModel;
-      const xModel = settings.grokModel || DEFAULT_SETTINGS.grokModel;
-      setGeminiModel(gModel);
-      setGrokModel(xModel);
-      setGeminiCustom(!GEMINI_MODEL_OPTIONS.includes(gModel));
-      setGrokCustom(!GROK_MODEL_OPTIONS.includes(xModel));
+      setSeatA(settings.seatA);
+      setSeatB(settings.seatB);
       setSaved(false);
     }
   }, [open, settings]);
 
   const handleSave = () => {
     onSave({
-      geminiApiKey: geminiApiKey.trim(),
-      grokApiKey: grokApiKey.trim(),
-      geminiModel: geminiModel.trim() || DEFAULT_SETTINGS.geminiModel,
-      grokModel: grokModel.trim() || DEFAULT_SETTINGS.grokModel,
+      seatA: {
+        ...seatA,
+        apiKey: seatA.apiKey.trim(),
+        model: seatA.model.trim() || defaultModelFor(seatA.provider),
+      },
+      seatB: {
+        ...seatB,
+        apiKey: seatB.apiKey.trim(),
+        model: seatB.model.trim() || defaultModelFor(seatB.provider),
+      },
     });
     setSaved(true);
     setTimeout(() => onOpenChange(false), 600);
@@ -75,164 +216,18 @@ export function SettingsModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-slate-100">
             <KeyRound className="h-5 w-5 text-sky-400" />
-            API Keys & Models
+            Seats & API keys
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Keys stay in your browser and are sent only through this app&apos;s
-            server route to Gemini or xAI. Never shared between users.
+            Each seat is one AI voice. Pick Gemini, Grok, or Claude, paste your
+            key, choose a model. Keys stay in this browser only.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-blue-500 to-purple-500">
-                <Bot className="h-4 w-4 text-white" />
-              </div>
-              <span className="text-sm font-semibold text-slate-200">Gemini</span>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="gemini-key" className="text-xs text-slate-400">
-                API Key
-              </Label>
-              <div className="relative">
-                <Input
-                  id="gemini-key"
-                  type={showGeminiKey ? 'text' : 'password'}
-                  value={geminiApiKey}
-                  onChange={(e) => setGeminiApiKey(e.target.value)}
-                  placeholder="AIza..."
-                  className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600 pr-10"
-                  autoComplete="off"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowGeminiKey((s) => !s)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-                >
-                  {showGeminiKey ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="gemini-model" className="text-xs text-slate-400">
-                Model
-              </Label>
-              {geminiCustom ? (
-                <Input
-                  id="gemini-model"
-                  type="text"
-                  value={geminiModel}
-                  onChange={(e) => setGeminiModel(e.target.value)}
-                  placeholder={DEFAULT_SETTINGS.geminiModel}
-                  className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600"
-                />
-              ) : (
-                <div className="relative">
-                  <select
-                    id="gemini-model"
-                    value={geminiModel}
-                    onChange={(e) => setGeminiModel(e.target.value)}
-                    className="h-10 w-full appearance-none rounded-md border border-slate-700 bg-slate-800 px-3 pr-8 text-sm text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
-                  >
-                    {GEMINI_MODEL_OPTIONS.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => setGeminiCustom((c) => !c)}
-                className="text-[10px] text-sky-400 hover:text-sky-300"
-              >
-                {geminiCustom ? 'Use dropdown' : 'Enter custom model name'}
-              </button>
-            </div>
-          </div>
-
+          <SeatEditor title="Seat A" seat={seatA} onChange={setSeatA} />
           <Separator className="bg-slate-700" />
-
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-700 border border-slate-600">
-                <Bot className="h-4 w-4 text-slate-300" />
-              </div>
-              <span className="text-sm font-semibold text-slate-200">Grok</span>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="grok-key" className="text-xs text-slate-400">
-                API Key
-              </Label>
-              <div className="relative">
-                <Input
-                  id="grok-key"
-                  type={showGrokKey ? 'text' : 'password'}
-                  value={grokApiKey}
-                  onChange={(e) => setGrokApiKey(e.target.value)}
-                  placeholder="xai-..."
-                  className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600 pr-10"
-                  autoComplete="off"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowGrokKey((s) => !s)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-                >
-                  {showGrokKey ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="grok-model" className="text-xs text-slate-400">
-                Model
-              </Label>
-              {grokCustom ? (
-                <Input
-                  id="grok-model"
-                  type="text"
-                  value={grokModel}
-                  onChange={(e) => setGrokModel(e.target.value)}
-                  placeholder={DEFAULT_SETTINGS.grokModel}
-                  className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600"
-                />
-              ) : (
-                <div className="relative">
-                  <select
-                    id="grok-model"
-                    value={grokModel}
-                    onChange={(e) => setGrokModel(e.target.value)}
-                    className="h-10 w-full appearance-none rounded-md border border-slate-700 bg-slate-800 px-3 pr-8 text-sm text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-                  >
-                    {GROK_MODEL_OPTIONS.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => setGrokCustom((c) => !c)}
-                className="text-[10px] text-slate-400 hover:text-slate-300"
-              >
-                {grokCustom ? 'Use dropdown' : 'Enter custom model name'}
-              </button>
-            </div>
-          </div>
+          <SeatEditor title="Seat B" seat={seatB} onChange={setSeatB} />
         </div>
 
         <DialogFooter>

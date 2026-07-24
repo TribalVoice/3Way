@@ -40,8 +40,8 @@ export function GettingStarted({
         <DialogHeader>
           <DialogTitle className="text-slate-100">Getting started</DialogTitle>
           <DialogDescription className="text-slate-400">
-            3Way Lite is a local (or hosted) web app. You bring your own Gemini
-            and/or Grok API keys.
+            3Way Lite is a local (or hosted) web app with two AI seats. Each seat
+            can be Gemini, Grok, or Claude — you bring your own API keys.
           </DialogDescription>
         </DialogHeader>
 
@@ -64,7 +64,7 @@ export function GettingStarted({
                 >
                   Settings
                 </button>{' '}
-                and paste your keys.
+                and configure Seat A and Seat B.
               </li>
               <li>
                 Gemini:{' '}
@@ -88,7 +88,18 @@ export function GettingStarted({
                   xAI Console
                 </a>
               </li>
-              <li>Save, then choose Both / Gemini / Grok and send a message.</li>
+              <li>
+                Claude:{' '}
+                <a
+                  className="text-sky-400 hover:underline"
+                  href="https://console.anthropic.com/"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Anthropic Console
+                </a>
+              </li>
+              <li>Save, then choose Both / a seat and send a message.</li>
             </ol>
           </section>
 

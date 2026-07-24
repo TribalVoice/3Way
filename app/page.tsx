@@ -32,6 +32,7 @@ import {
   Room,
   SpeakTarget,
   Turn,
+  SeatId,
 } from '@/lib/types';
 import {
   BUY_ME_A_COFFEE_URL,
@@ -39,13 +40,18 @@ import {
   isSupportEnabled,
 } from '@/lib/support';
 import {
+  getSeat,
+  seatDisplayName,
+  seatReady,
+} from '@/lib/providers';
+import {
   createEmptyRoom,
   createTurn,
   appendTurn,
   updateTurn,
   hasPendingTurns,
   buildProviderMessages,
-  systemPromptFor,
+  systemPromptForSeat,
 } from '@/lib/room';
 import {
   loadRoom,
@@ -121,41 +127,39 @@ export default function Home() {
     saveSettings(s);
   };
 
-  const resolveSpeakers = (
+  const resolveSeats = (
     target: SpeakTarget,
     current: SettingsType
-  ): Array<'gemini' | 'grok'> => {
-    const speakers: Array<'gemini' | 'grok'> = [];
-    if (
-      (target === 'both' || target === 'gemini') &&
-      current.geminiApiKey.trim()
-    ) {
-      speakers.push('gemini');
+  ): SeatId[] => {
+    const seats: SeatId[] = [];
+    if ((target === 'both' || target === 'a') && seatReady(current.seatA)) {
+      seats.push('a');
     }
-    if ((target === 'both' || target === 'grok') && current.grokApiKey.trim()) {
-      speakers.push('grok');
+    if ((target === 'both' || target === 'b') && seatReady(current.seatB)) {
+      seats.push('b');
     }
-    return speakers;
+    return seats;
   };
 
-  const runSpeakers = async (
+  const runSeats = async (
     baseRoom: Room,
-    speakers: Array<'gemini' | 'grok'>,
+    seats: SeatId[],
     current: SettingsType
   ) => {
-    if (speakers.length === 0) return baseRoom;
+    if (seats.length === 0) return baseRoom;
 
     let working = baseRoom;
-    const pending: { speaker: 'gemini' | 'grok'; turn: Turn }[] = [];
+    const pending: { seat: SeatId; turn: Turn }[] = [];
 
-    for (const speaker of speakers) {
-      const modelName =
-        speaker === 'gemini' ? current.geminiModel : current.grokModel;
-      const turn = createTurn(speaker, '', {
-        modelName,
+    for (const seat of seats) {
+      const cfg = getSeat(current, seat);
+      const turn = createTurn(seat, '', {
+        modelName: cfg.model,
         status: 'pending',
+        provider: cfg.provider,
+        displayName: seatDisplayName(cfg),
       });
-      pending.push({ speaker, turn });
+      pending.push({ seat, turn });
       working = appendTurn(working, turn);
     }
     setRoom(working);
@@ -163,19 +167,21 @@ export default function Home() {
 
     const pendingIds = new Set(pending.map((p) => p.turn.id));
 
-    const tasks = pending.map(({ speaker, turn }) => {
-      const apiKey =
-        speaker === 'gemini' ? current.geminiApiKey : current.grokApiKey;
-      const model =
-        speaker === 'gemini' ? current.geminiModel : current.grokModel;
-      const messages = buildProviderMessages(working, speaker, pendingIds);
+    const tasks = pending.map(({ seat, turn }) => {
+      const cfg = getSeat(current, seat);
+      const messages = buildProviderMessages(
+        working,
+        seat,
+        current,
+        pendingIds
+      );
 
       return streamProvider({
-        provider: speaker,
-        apiKey,
-        model,
+        provider: cfg.provider,
+        apiKey: cfg.apiKey,
+        model: cfg.model,
         messages,
-        systemPrompt: systemPromptFor(speaker),
+        systemPrompt: systemPromptForSeat(seat, current),
         handlers: {
           onToken: (chunk) => {
             setRoom((r) => {
@@ -229,8 +235,8 @@ export default function Home() {
       return;
     }
 
-    const speakers = resolveSpeakers(speakTarget, currentSettings);
-    if (speakers.length === 0) {
+    const seats = resolveSeats(speakTarget, currentSettings);
+    if (seats.length === 0) {
       setSettingsOpen(true);
       return;
     }
@@ -247,7 +253,7 @@ export default function Home() {
     roomRef.current = nextRoom;
 
     try {
-      await runSpeakers(nextRoom, speakers, currentSettings);
+      await runSeats(nextRoom, seats, currentSettings);
     } finally {
       setIsBusy(false);
       inputRef.current?.focus();
@@ -264,8 +270,8 @@ export default function Home() {
 
     if (roomRef.current.turns.length === 0) return;
 
-    const speakers = resolveSpeakers(target, currentSettings);
-    if (speakers.length === 0) {
+    const seats = resolveSeats(target, currentSettings);
+    if (seats.length === 0) {
       setSettingsOpen(true);
       return;
     }
@@ -283,18 +289,20 @@ export default function Home() {
         return;
       }
 
+      const nameA = seatDisplayName(currentSettings.seatA);
+      const nameB = seatDisplayName(currentSettings.seatB);
       const inviteNote =
         target === 'both'
           ? 'Both of you: please respond to the conversation so far (including each other if relevant).'
-          : target === 'gemini'
-            ? 'Gemini: please respond to the conversation so far.'
-            : 'Grok: please respond to the conversation so far.';
+          : target === 'a'
+            ? `${nameA}: please respond to the conversation so far.`
+            : `${nameB}: please respond to the conversation so far.`;
 
       base = appendTurn(base, createTurn('user', inviteNote));
       setRoom(base);
       roomRef.current = base;
 
-      await runSpeakers(base, speakers, currentSettings);
+      await runSeats(base, seats, currentSettings);
     } finally {
       setIsBusy(false);
       inputRef.current?.focus();
@@ -304,14 +312,18 @@ export default function Home() {
   const handleRetry = async (turnId: string) => {
     if (!settings || isBusy) return;
     const turn = roomRef.current.turns.find((t) => t.id === turnId);
-    if (!turn || (turn.speaker !== 'gemini' && turn.speaker !== 'grok')) return;
+    if (!turn || turn.speaker === 'user' || turn.kind === 'document') return;
 
-    const speaker = turn.speaker;
-    const apiKey =
-      speaker === 'gemini' ? settings.geminiApiKey : settings.grokApiKey;
-    const model =
-      turn.modelName ||
-      (speaker === 'gemini' ? settings.geminiModel : settings.grokModel);
+    let seat: SeatId | null = null;
+    if (turn.speaker === 'a' || turn.speaker === 'b') seat = turn.speaker;
+    else if (turn.speaker === 'gemini') seat = 'a';
+    else if (turn.speaker === 'grok') seat = 'b';
+    if (!seat) return;
+
+    const cfg = getSeat(settings, seat);
+    const apiKey = cfg.apiKey;
+    const model = turn.modelName || cfg.model;
+    const provider = turn.provider || cfg.provider;
 
     if (!apiKey.trim()) {
       setSettingsOpen(true);
@@ -332,15 +344,16 @@ export default function Home() {
     try {
       const messages = buildProviderMessages(
         roomRef.current,
-        speaker,
+        seat,
+        settings,
         new Set([turnId])
       );
       const content = await streamProvider({
-        provider: speaker,
+        provider,
         apiKey,
         model,
         messages,
-        systemPrompt: systemPromptFor(speaker),
+        systemPrompt: systemPromptForSeat(seat, settings),
         handlers: {
           onToken: (chunk) => {
             setRoom((r) => {
@@ -475,8 +488,10 @@ export default function Home() {
     }
   };
 
-  const geminiReady = Boolean(settings?.geminiApiKey?.trim());
-  const grokReady = Boolean(settings?.grokApiKey?.trim());
+  const seatAReady = settings ? seatReady(settings.seatA) : false;
+  const seatBReady = settings ? seatReady(settings.seatB) : false;
+  const labelA = settings ? seatDisplayName(settings.seatA) : 'Seat A';
+  const labelB = settings ? seatDisplayName(settings.seatB) : 'Seat B';
   const hasChat = room.turns.length > 0;
   const pending = hasPendingTurns(room) || isBusy;
 
@@ -572,11 +587,12 @@ export default function Home() {
       }
 
       if (run.length === 2 && run[0].speaker !== run[1].speaker) {
-        const ordered = [...run].sort((a, b) => {
-          if (a.speaker === 'gemini') return -1;
-          if (b.speaker === 'gemini') return 1;
-          return 0;
-        });
+        const seatOrder = (t: Turn) => {
+          if (t.speaker === 'a' || t.speaker === 'gemini') return 0;
+          if (t.speaker === 'b' || t.speaker === 'grok') return 1;
+          return 2;
+        };
+        const ordered = [...run].sort((a, b) => seatOrder(a) - seatOrder(b));
         nodes.push(
           <div
             key={`pair-${run[0].id}`}
@@ -613,7 +629,7 @@ export default function Home() {
               3Way Lite
             </h1>
             <p className="text-[10px] text-slate-500">
-              You · Gemini · Grok · files · stream · export
+              You · {labelA} · {labelB} · dual seats
             </p>
           </div>
         </div>
@@ -622,24 +638,24 @@ export default function Home() {
             <span
               className={cn(
                 'flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium',
-                geminiReady
+                seatAReady
                   ? 'bg-blue-500/15 text-blue-400'
                   : 'bg-slate-800 text-slate-500'
               )}
             >
               <Bot className="h-3 w-3" />
-              Gemini {geminiReady ? '✓' : '—'}
+              {labelA} {seatAReady ? '✓' : '—'}
             </span>
             <span
               className={cn(
                 'flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium',
-                grokReady
+                seatBReady
                   ? 'bg-slate-200/15 text-slate-300'
                   : 'bg-slate-800 text-slate-500'
               )}
             >
               <Bot className="h-3 w-3" />
-              Grok {grokReady ? '✓' : '—'}
+              {labelB} {seatBReady ? '✓' : '—'}
             </span>
           </div>
 
@@ -832,8 +848,9 @@ export default function Home() {
                 Three-way room
               </h2>
               <p className="mb-5 max-w-md text-sm text-slate-500">
-                You, Gemini, and Grok share one transcript. Attach docs as text,
-                stream replies, and export backups. You control the pace.
+                You and two AI seats share one transcript. Each seat can be
+                Gemini, Grok, or Claude. Attach docs, stream replies, export
+                backups — you control the pace.
               </p>
 
               <div className="mb-6 w-full max-w-md space-y-3 text-left">
@@ -842,9 +859,9 @@ export default function Home() {
                     First-time setup
                   </p>
                   <ol className="space-y-1.5 text-xs text-slate-500">
-                    <li>1. Open Settings and paste Gemini and/or Grok API keys</li>
+                    <li>1. Settings → configure Seat A and Seat B (provider + key)</li>
                     <li>2. Optional: paperclip to attach PDF or text files</li>
-                    <li>3. Choose Both / Gemini / Grok, then send a message</li>
+                    <li>3. Choose Both / seat, then send a message</li>
                     <li>4. Export JSON anytime to back up the room</li>
                   </ol>
                 </div>
@@ -880,13 +897,13 @@ export default function Home() {
               </div>
 
               <div className="flex flex-wrap items-center justify-center gap-2">
-                {!geminiReady && !grokReady && (
+                {!seatAReady && !seatBReady && (
                   <Button
                     onClick={() => setSettingsOpen(true)}
                     className="bg-sky-600 hover:bg-sky-500 text-white"
                   >
                     <Settings className="h-4 w-4 mr-2" />
-                    Configure API Keys
+                    Configure seats
                   </Button>
                 )}
                 <Button
@@ -931,14 +948,14 @@ export default function Home() {
             {(
               [
                 { id: 'both' as const, label: 'Both' },
-                { id: 'gemini' as const, label: 'Gemini' },
-                { id: 'grok' as const, label: 'Grok' },
+                { id: 'a' as const, label: labelA },
+                { id: 'b' as const, label: labelB },
               ] as const
             ).map((opt) => {
               const disabled =
-                (opt.id === 'gemini' && !geminiReady) ||
-                (opt.id === 'grok' && !grokReady) ||
-                (opt.id === 'both' && !geminiReady && !grokReady);
+                (opt.id === 'a' && !seatAReady) ||
+                (opt.id === 'b' && !seatBReady) ||
+                (opt.id === 'both' && !seatAReady && !seatBReady);
               return (
                 <button
                   key={opt.id}
@@ -962,13 +979,18 @@ export default function Home() {
                 <span className="mx-1 hidden h-4 w-px bg-slate-700 sm:inline-block" />
                 <button
                   type="button"
-                  disabled={pending || (!geminiReady && !grokReady)}
+                  disabled={pending || (!seatAReady && !seatBReady)}
                   onClick={() => void handleInvite(speakTarget)}
                   className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-800/80 px-3 py-1 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-700 disabled:opacity-40"
                   title="Ask the selected model(s) to speak again without typing a new message"
                 >
                   <MessagesSquare className="h-3.5 w-3.5" />
-                  Invite {speakTarget === 'both' ? 'both' : speakTarget}
+                  Invite{' '}
+                  {speakTarget === 'both'
+                    ? 'both'
+                    : speakTarget === 'a'
+                      ? labelA
+                      : labelB}
                 </button>
               </>
             )}
@@ -1006,10 +1028,10 @@ export default function Home() {
               onKeyDown={handleKeyDown}
               placeholder={
                 speakTarget === 'both'
-                  ? 'Message the room — both AIs stream replies…'
-                  : speakTarget === 'gemini'
-                    ? 'Message the room — Gemini streams…'
-                    : 'Message the room — Grok streams…'
+                  ? 'Message the room — both seats stream…'
+                  : speakTarget === 'a'
+                    ? `Message the room — ${labelA} streams…`
+                    : `Message the room — ${labelB} streams…`
               }
               disabled={pending}
               className="min-h-[44px] max-h-[160px] flex-1 resize-none border-0 bg-transparent px-2 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus-visible:ring-0 focus-visible:ring-offset-0"

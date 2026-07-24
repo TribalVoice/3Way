@@ -4,13 +4,15 @@ export const runtime = 'nodejs';
 
 const FETCH_TIMEOUT_MS = 120_000;
 
+type ProviderId = 'gemini' | 'grok' | 'claude';
+
 interface MessageItem {
   role: 'user' | 'assistant';
   content: string;
 }
 
 interface RequestBody {
-  provider: 'gemini' | 'grok';
+  provider: ProviderId;
   apiKey: string;
   model: string;
   messages: MessageItem[];
@@ -22,7 +24,11 @@ function sseLine(data: unknown): string {
   return `data: ${JSON.stringify(data)}\n\n`;
 }
 
-function friendlyHttpError(provider: string, status: number, body: string): string {
+function friendlyHttpError(
+  provider: string,
+  status: number,
+  body: string
+): string {
   const snippet = body.slice(0, 400);
   if (status === 401 || status === 403) {
     return `${provider} rejected the API key (${status}). Check the key in Settings.`;
@@ -59,7 +65,7 @@ function buildGeminiContents(messages: MessageItem[]) {
   return contents;
 }
 
-function buildGrokMessages(
+function buildOpenAiStyleMessages(
   messages: MessageItem[],
   systemPrompt?: string
 ): Array<{ role: string; content: string }> {
@@ -71,9 +77,35 @@ function buildGrokMessages(
     apiMessages.push({ role: m.role, content: m.content });
   }
   if (apiMessages.filter((m) => m.role !== 'system').length === 0) {
-    throw new Error('No messages to send to Grok.');
+    throw new Error('No messages to send.');
   }
   return apiMessages;
+}
+
+function buildClaudeMessages(messages: MessageItem[]): MessageItem[] {
+  const out: MessageItem[] = [];
+  for (const m of messages) {
+    const last = out[out.length - 1];
+    if (last && last.role === m.role) {
+      last.content += `\n\n${m.content}`;
+    } else {
+      out.push({ role: m.role, content: m.content });
+    }
+  }
+  if (out.length === 0) throw new Error('No messages to send to Claude.');
+  if (out[0].role !== 'user') {
+    out.unshift({
+      role: 'user',
+      content: '(Continue the conversation based on the room so far.)',
+    });
+  }
+  if (out[out.length - 1].role !== 'user') {
+    out.push({
+      role: 'user',
+      content: '(Continue based on the room so far.)',
+    });
+  }
+  return out;
 }
 
 async function callGemini(
@@ -110,7 +142,9 @@ async function callGemini(
 
     const data = await res.json();
     if (data?.promptFeedback?.blockReason) {
-      throw new Error(`Gemini blocked the prompt (${data.promptFeedback.blockReason}).`);
+      throw new Error(
+        `Gemini blocked the prompt (${data.promptFeedback.blockReason}).`
+      );
     }
     const candidate = data?.candidates?.[0];
     if (!candidate) throw new Error('Gemini returned no candidates.');
@@ -141,7 +175,7 @@ async function callGrok(
   messages: MessageItem[],
   systemPrompt?: string
 ): Promise<string> {
-  const apiMessages = buildGrokMessages(messages, systemPrompt);
+  const apiMessages = buildOpenAiStyleMessages(messages, systemPrompt);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -171,6 +205,60 @@ async function callGrok(
       throw new Error('Grok returned an empty response.');
     }
     return typeof content === 'string' ? content : String(content);
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`Request timed out after ${FETCH_TIMEOUT_MS / 1000}s.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function callClaude(
+  apiKey: string,
+  model: string,
+  messages: MessageItem[],
+  systemPrompt?: string
+): Promise<string> {
+  const claudeMessages = buildClaudeMessages(messages);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 8192,
+        system: systemPrompt || undefined,
+        messages: claudeMessages,
+        stream: false,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(friendlyHttpError('Claude', res.status, errText));
+    }
+
+    const data = await res.json();
+    const parts = data?.content;
+    if (!Array.isArray(parts)) {
+      throw new Error('Claude returned an unexpected response.');
+    }
+    const text = parts
+      .filter((p: { type?: string }) => p.type === 'text')
+      .map((p: { text?: string }) => p.text ?? '')
+      .join('');
+    if (!text.trim()) throw new Error('Claude returned an empty response.');
+    return text;
   } catch (err: unknown) {
     if (err instanceof Error && err.name === 'AbortError') {
       throw new Error(`Request timed out after ${FETCH_TIMEOUT_MS / 1000}s.`);
@@ -228,7 +316,9 @@ function streamGemini(
 
         if (!res.body) {
           controller.enqueue(
-            encoder.encode(sseLine({ error: 'Gemini returned no stream body.' }))
+            encoder.encode(
+              sseLine({ error: 'Gemini returned no stream body.' })
+            )
           );
           controller.close();
           return;
@@ -257,19 +347,23 @@ function streamGemini(
                 for (const p of parts) {
                   if (typeof p?.text === 'string' && p.text) {
                     full += p.text;
-                    controller.enqueue(encoder.encode(sseLine({ text: p.text })));
+                    controller.enqueue(
+                      encoder.encode(sseLine({ text: p.text }))
+                    );
                   }
                 }
               }
             } catch {
-              // skip partial JSON
+              // skip
             }
           }
         }
 
         if (!full.trim()) {
           controller.enqueue(
-            encoder.encode(sseLine({ error: 'Gemini returned an empty stream.' }))
+            encoder.encode(
+              sseLine({ error: 'Gemini returned an empty stream.' })
+            )
           );
         } else {
           controller.enqueue(
@@ -300,7 +394,7 @@ function streamGrok(
   systemPrompt?: string
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
-  const apiMessages = buildGrokMessages(messages, systemPrompt);
+  const apiMessages = buildOpenAiStyleMessages(messages, systemPrompt);
 
   return new ReadableStream({
     async start(controller) {
@@ -397,6 +491,125 @@ function streamGrok(
   });
 }
 
+function streamClaude(
+  apiKey: string,
+  model: string,
+  messages: MessageItem[],
+  systemPrompt?: string
+): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  const claudeMessages = buildClaudeMessages(messages);
+
+  return new ReadableStream({
+    async start(controller) {
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), FETCH_TIMEOUT_MS);
+      let full = '';
+
+      try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 8192,
+            system: systemPrompt || undefined,
+            messages: claudeMessages,
+            stream: true,
+          }),
+          signal: abort.signal,
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          controller.enqueue(
+            encoder.encode(
+              sseLine({
+                error: friendlyHttpError('Claude', res.status, errText),
+              })
+            )
+          );
+          controller.close();
+          return;
+        }
+
+        if (!res.body) {
+          controller.enqueue(
+            encoder.encode(
+              sseLine({ error: 'Claude returned no stream body.' })
+            )
+          );
+          controller.close();
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data:')) continue;
+            const payload = trimmed.slice(5).trim();
+            if (!payload || payload === '[DONE]') continue;
+            try {
+              const json = JSON.parse(payload);
+              if (
+                json?.type === 'content_block_delta' &&
+                json?.delta?.type === 'text_delta' &&
+                typeof json.delta.text === 'string'
+              ) {
+                const text = json.delta.text as string;
+                if (text) {
+                  full += text;
+                  controller.enqueue(encoder.encode(sseLine({ text })));
+                }
+              }
+            } catch {
+              // skip
+            }
+          }
+        }
+
+        if (!full.trim()) {
+          controller.enqueue(
+            encoder.encode(
+              sseLine({ error: 'Claude returned an empty stream.' })
+            )
+          );
+        } else {
+          controller.enqueue(
+            encoder.encode(sseLine({ done: true, content: full }))
+          );
+        }
+        controller.close();
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error && err.name === 'AbortError'
+            ? `Request timed out after ${FETCH_TIMEOUT_MS / 1000}s.`
+            : err instanceof Error
+              ? err.message
+              : 'Claude stream failed.';
+        controller.enqueue(encoder.encode(sseLine({ error: message })));
+        controller.close();
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+  });
+}
+
 export async function POST(req: NextRequest) {
   let body: RequestBody;
   try {
@@ -407,7 +620,11 @@ export async function POST(req: NextRequest) {
 
   const { provider, apiKey, model, messages, systemPrompt, stream } = body;
 
-  if (provider !== 'gemini' && provider !== 'grok') {
+  if (
+    provider !== 'gemini' &&
+    provider !== 'grok' &&
+    provider !== 'claude'
+  ) {
     return NextResponse.json({ error: 'Invalid provider.' }, { status: 400 });
   }
 
@@ -434,10 +651,29 @@ export async function POST(req: NextRequest) {
 
   if (stream) {
     try {
-      const readable =
-        provider === 'gemini'
-          ? streamGemini(apiKey.trim(), model.trim(), messages, systemPrompt)
-          : streamGrok(apiKey.trim(), model.trim(), messages, systemPrompt);
+      let readable: ReadableStream<Uint8Array>;
+      if (provider === 'gemini') {
+        readable = streamGemini(
+          apiKey.trim(),
+          model.trim(),
+          messages,
+          systemPrompt
+        );
+      } else if (provider === 'grok') {
+        readable = streamGrok(
+          apiKey.trim(),
+          model.trim(),
+          messages,
+          systemPrompt
+        );
+      } else {
+        readable = streamClaude(
+          apiKey.trim(),
+          model.trim(),
+          messages,
+          systemPrompt
+        );
+      }
 
       return new Response(readable, {
         headers: {
@@ -462,8 +698,15 @@ export async function POST(req: NextRequest) {
         messages,
         systemPrompt
       );
-    } else {
+    } else if (provider === 'grok') {
       content = await callGrok(
+        apiKey.trim(),
+        model.trim(),
+        messages,
+        systemPrompt
+      );
+    } else {
+      content = await callClaude(
         apiKey.trim(),
         model.trim(),
         messages,

@@ -1,16 +1,18 @@
 # 3Way Lite
 
-User-paced three-way chat: **you**, **Gemini**, and **Grok** share one room transcript. You control who speaks next.
+User-paced three-way chat: **you** and **two AI seats** share one room transcript. You control who speaks next.
 
 ## Features
 
 - Shared linear room (not tournament branching)
-- **Both / Gemini / Grok** reply targets + **Invite** to continue
+- **Seat A / Seat B** — each can be **Gemini**, **Grok**, or **Claude**
+- **Both / seat** reply targets + **Invite** to continue
 - **Streaming** replies (live tokens)
 - **Attach files** → extract text (PDF, Markdown, code, CSV, …) → inject into the room
+- **Copy** per turn · **Search** the room
 - **Export / import** room as JSON; export Markdown for reading
 - BYOK: API keys stored in your browser only
-- In-app **Getting started** help (? icon)
+- In-app **Getting started** help + **Ko-fi** support link
 - Windows **launcher** + desktop shortcut scripts
 
 ## Setup (first time)
@@ -23,11 +25,12 @@ User-paced three-way chat: **you**, **Gemini**, and **Grok** share one room tran
 npm install
 ```
 
-4. Add API keys in the app Settings:
+4. Configure seats in Settings (provider + API key + model):
    - [Google AI Studio](https://aistudio.google.com/apikey) (Gemini)
    - [xAI Console](https://console.x.ai/) (Grok)
+   - [Anthropic Console](https://console.anthropic.com/) (Claude)
 
-Default models: `gemini-3.6-flash` and `grok-4.5` (custom names supported).
+Defaults: Seat A = Gemini (`gemini-3.6-flash`), Seat B = Grok (`grok-4.5`). Custom model names supported.
 
 ## Launch on Windows (desktop icon)
 

@@ -2,13 +2,14 @@ import {
   Room,
   Settings,
   DEFAULT_SETTINGS,
-  GEMINI_RETIRED_MODELS,
+  SeatConfig,
+  ProviderId,
 } from './types';
 import { createEmptyRoom, sanitizeRoom } from './room';
+import { defaultModelFor, normalizeModel } from './providers';
 
 const ROOM_KEY = '3way-room';
 const SETTINGS_KEY = '3way-settings';
-/** Legacy BranchChat keys — migrated once if present */
 const LEGACY_TREE_KEY = 'branchchat-tree';
 const LEGACY_SETTINGS_KEY = 'branchchat-settings';
 
@@ -37,14 +38,28 @@ export function saveRoom(room: Room): void {
   }
 }
 
-function normalizeGeminiModel(model: string | undefined): string {
-  const m = (model ?? '').trim() || DEFAULT_SETTINGS.geminiModel;
-  if (GEMINI_RETIRED_MODELS.has(m)) {
-    return DEFAULT_SETTINGS.geminiModel;
-  }
-  return m;
+function asProvider(value: unknown, fallback: ProviderId): ProviderId {
+  if (value === 'gemini' || value === 'grok' || value === 'claude') return value;
+  return fallback;
 }
 
+function normalizeSeat(
+  seat: Partial<SeatConfig> | undefined,
+  fallback: SeatConfig
+): SeatConfig {
+  const provider = asProvider(seat?.provider, fallback.provider);
+  return {
+    provider,
+    apiKey: (seat?.apiKey ?? fallback.apiKey ?? '').trim(),
+    model: normalizeModel(provider, seat?.model || fallback.model || defaultModelFor(provider)),
+  };
+}
+
+/**
+ * Load settings with migration from:
+ * - seatA / seatB shape (current)
+ * - legacy geminiApiKey / grokApiKey / models
+ */
 export function loadSettings(): Settings {
   if (typeof window === 'undefined') return DEFAULT_SETTINGS;
   try {
@@ -53,17 +68,50 @@ export function loadSettings(): Settings {
       raw = localStorage.getItem(LEGACY_SETTINGS_KEY);
     }
     if (!raw) return DEFAULT_SETTINGS;
-    const parsed = JSON.parse(raw) as Partial<Settings>;
-    const settings: Settings = {
-      geminiApiKey: parsed.geminiApiKey ?? '',
-      grokApiKey: parsed.grokApiKey ?? '',
-      geminiModel: normalizeGeminiModel(parsed.geminiModel),
-      grokModel: parsed.grokModel?.trim() || DEFAULT_SETTINGS.grokModel,
-    };
-    // Persist migration so Settings UI shows the new default
-    if (parsed.geminiModel !== settings.geminiModel) {
+
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+
+    // New shape
+    if (parsed.seatA || parsed.seatB) {
+      const settings: Settings = {
+        seatA: normalizeSeat(
+          parsed.seatA as Partial<SeatConfig> | undefined,
+          DEFAULT_SETTINGS.seatA
+        ),
+        seatB: normalizeSeat(
+          parsed.seatB as Partial<SeatConfig> | undefined,
+          DEFAULT_SETTINGS.seatB
+        ),
+      };
       saveSettings(settings);
+      return settings;
     }
+
+    // Legacy flat Gemini / Grok keys
+    const geminiKey = String(parsed.geminiApiKey ?? '');
+    const grokKey = String(parsed.grokApiKey ?? '');
+    const geminiModel = normalizeModel(
+      'gemini',
+      String(parsed.geminiModel ?? DEFAULT_SETTINGS.seatA.model)
+    );
+    const grokModel = normalizeModel(
+      'grok',
+      String(parsed.grokModel ?? DEFAULT_SETTINGS.seatB.model)
+    );
+
+    const settings: Settings = {
+      seatA: {
+        provider: 'gemini',
+        apiKey: geminiKey,
+        model: geminiModel,
+      },
+      seatB: {
+        provider: 'grok',
+        apiKey: grokKey,
+        model: grokModel,
+      },
+    };
+    saveSettings(settings);
     return settings;
   } catch {
     return DEFAULT_SETTINGS;

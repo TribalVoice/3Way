@@ -1,4 +1,14 @@
-import { Room, Turn, Speaker, TurnStatus, TurnKind } from './types';
+import {
+  Room,
+  Turn,
+  Speaker,
+  TurnStatus,
+  TurnKind,
+  SeatId,
+  ProviderId,
+  Settings,
+} from './types';
+import { getSeat, seatDisplayName, turnDisplayName } from './providers';
 
 export function createEmptyRoom(): Room {
   return { turns: [] };
@@ -18,6 +28,8 @@ export function createTurn(
     kind?: TurnKind;
     fileName?: string;
     truncated?: boolean;
+    provider?: ProviderId;
+    displayName?: string;
   } = {}
 ): Turn {
   return {
@@ -31,6 +43,8 @@ export function createTurn(
     kind: options.kind ?? 'message',
     fileName: options.fileName,
     truncated: options.truncated,
+    provider: options.provider,
+    displayName: options.displayName,
   };
 }
 
@@ -53,7 +67,6 @@ export function removeTurn(room: Room, id: string): Room {
   return { ...room, turns: room.turns.filter((t) => t.id !== id) };
 }
 
-/** Drop in-flight turns left over from a closed tab / crash */
 export function sanitizeRoom(room: Room): Room {
   return {
     ...room,
@@ -73,17 +86,6 @@ export function hasPendingTurns(room: Room): boolean {
   );
 }
 
-export function speakerLabel(speaker: Speaker): string {
-  switch (speaker) {
-    case 'user':
-      return 'User';
-    case 'gemini':
-      return 'Gemini';
-    case 'grok':
-      return 'Grok';
-  }
-}
-
 function turnToProviderContent(turn: Turn): string {
   if (turn.kind === 'document') {
     const name = turn.fileName || 'document';
@@ -95,14 +97,40 @@ function turnToProviderContent(turn: Turn): string {
   return turn.content;
 }
 
+function isOwnTurn(
+  turn: Turn,
+  forSeat: SeatId,
+  settings: Settings
+): boolean {
+  if (turn.speaker === forSeat) return true;
+
+  const seat = getSeat(settings, forSeat);
+  const other: SeatId = forSeat === 'a' ? 'b' : 'a';
+  const otherSeat = getSeat(settings, other);
+
+  // Legacy transcripts used speaker: gemini | grok
+  if (turn.speaker === 'gemini') {
+    if (seat.provider !== 'gemini') return false;
+    // Prefer seat A when both seats are Gemini
+    if (otherSeat.provider === 'gemini') return forSeat === 'a';
+    return true;
+  }
+  if (turn.speaker === 'grok') {
+    if (seat.provider !== 'grok') return false;
+    if (otherSeat.provider === 'grok') return forSeat === 'b';
+    return true;
+  }
+
+  return false;
+}
+
 /**
- * Build OpenAI-style messages for one model from the full room transcript.
- * Complete turns only; speakers labeled so both models share one room history.
- * Streaming turns with partial content are excluded until complete.
+ * Build OpenAI-style messages for one seat from the full room transcript.
  */
 export function buildProviderMessages(
   room: Room,
-  forSpeaker: 'gemini' | 'grok',
+  forSeat: SeatId,
+  settings: Settings,
   excludeTurnIds: Set<string> = new Set()
 ): Array<{ role: 'user' | 'assistant'; content: string }> {
   const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
@@ -119,10 +147,10 @@ export function buildProviderMessages(
       continue;
     }
 
-    if (turn.speaker === forSpeaker) {
+    if (isOwnTurn(turn, forSeat, settings)) {
       messages.push({ role: 'assistant', content });
     } else {
-      const label = speakerLabel(turn.speaker);
+      const label = turnDisplayName(turn);
       messages.push({
         role: 'user',
         content: `[${label} said]: ${content}`,
@@ -133,16 +161,22 @@ export function buildProviderMessages(
   return messages;
 }
 
-export function systemPromptFor(speaker: 'gemini' | 'grok'): string {
-  const name = speaker === 'gemini' ? 'Gemini' : 'Grok';
-  const other = speaker === 'gemini' ? 'Grok' : 'Gemini';
+export function systemPromptForSeat(
+  forSeat: SeatId,
+  settings: Settings
+): string {
+  const me = getSeat(settings, forSeat);
+  const otherSeatId: SeatId = forSeat === 'a' ? 'b' : 'a';
+  const other = getSeat(settings, otherSeatId);
+  const name = seatDisplayName(me);
+  const otherName = seatDisplayName(other);
   return [
-    `You are ${name} in a live three-way chat room with a human user and ${other}.`,
-    `The user controls the pace: they choose when you speak and may ask only you, only ${other}, or both of you.`,
-    `You can see the full room transcript. Messages from ${other} appear as "[${other} said]: ...".`,
+    `You are ${name} in a live three-way chat room with a human user and ${otherName}.`,
+    `The user controls the pace: they choose when you speak and may ask only you, only ${otherName}, or both of you.`,
+    `You can see the full room transcript. Messages from ${otherName} appear as "[${otherName} said]: ...".`,
     `Documents appear as "[Attached document: filename]" with extracted text.`,
-    `Speak as yourself. Be clear and direct. You may agree, disagree, or build on ${other}'s points when relevant.`,
-    `Do not pretend to be the user or ${other}. Do not narrate the whole room unless asked.`,
+    `Speak as yourself. Be clear and direct. You may agree, disagree, or build on ${otherName}'s points when relevant.`,
+    `Do not pretend to be the user or ${otherName}. Do not narrate the whole room unless asked.`,
   ].join(' ');
 }
 
@@ -163,12 +197,7 @@ export function roomToMarkdown(room: Room): string {
       lines.push('');
       continue;
     }
-    const who =
-      t.speaker === 'user'
-        ? 'You'
-        : t.speaker === 'gemini'
-          ? 'Gemini'
-          : 'Grok';
+    const who = turnDisplayName(t);
     lines.push(`## ${who}`);
     if (t.status === 'error') {
       lines.push(`*Error: ${t.error || 'failed'}*`);
