@@ -1,45 +1,24 @@
 import {
-  Room,
   Settings,
   DEFAULT_SETTINGS,
   SeatConfig,
   ProviderId,
 } from './types';
-import { createEmptyRoom, sanitizeRoom } from './room';
 import { defaultModelFor, normalizeModel } from './providers';
 
-const ROOM_KEY = '3way-room';
 const SETTINGS_KEY = '3way-settings';
 const LEGACY_TREE_KEY = 'branchchat-tree';
 const LEGACY_SETTINGS_KEY = 'branchchat-settings';
 
-export function loadRoom(): Room {
-  if (typeof window === 'undefined') return createEmptyRoom();
-  try {
-    const raw = localStorage.getItem(ROOM_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Room;
-      if (parsed && Array.isArray(parsed.turns)) {
-        return sanitizeRoom(parsed);
-      }
-    }
-  } catch {
-    // ignore
-  }
-  return createEmptyRoom();
-}
-
-export function saveRoom(room: Room): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(ROOM_KEY, JSON.stringify(room));
-  } catch {
-    // storage full or unavailable
-  }
-}
-
 function asProvider(value: unknown, fallback: ProviderId): ProviderId {
-  if (value === 'gemini' || value === 'grok' || value === 'claude') return value;
+  if (
+    value === 'gemini' ||
+    value === 'grok' ||
+    value === 'claude' ||
+    value === 'perplexity'
+  ) {
+    return value;
+  }
   return fallback;
 }
 
@@ -51,15 +30,13 @@ function normalizeSeat(
   return {
     provider,
     apiKey: (seat?.apiKey ?? fallback.apiKey ?? '').trim(),
-    model: normalizeModel(provider, seat?.model || fallback.model || defaultModelFor(provider)),
+    model: normalizeModel(
+      provider,
+      seat?.model || fallback.model || defaultModelFor(provider)
+    ),
   };
 }
 
-/**
- * Load settings with migration from:
- * - seatA / seatB shape (current)
- * - legacy geminiApiKey / grokApiKey / models
- */
 export function loadSettings(): Settings {
   if (typeof window === 'undefined') return DEFAULT_SETTINGS;
   try {
@@ -71,7 +48,6 @@ export function loadSettings(): Settings {
 
     const parsed = JSON.parse(raw) as Record<string, unknown>;
 
-    // New shape
     if (parsed.seatA || parsed.seatB) {
       const settings: Settings = {
         seatA: normalizeSeat(
@@ -87,7 +63,6 @@ export function loadSettings(): Settings {
       return settings;
     }
 
-    // Legacy flat Gemini / Grok keys
     const geminiKey = String(parsed.geminiApiKey ?? '');
     const grokKey = String(parsed.grokApiKey ?? '');
     const geminiModel = normalizeModel(

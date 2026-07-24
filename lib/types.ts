@@ -1,5 +1,5 @@
 /** Backend API providers */
-export type ProviderId = 'gemini' | 'grok' | 'claude';
+export type ProviderId = 'gemini' | 'grok' | 'claude' | 'perplexity';
 
 /** Room speakers: user + two configurable seats */
 export type SeatId = 'a' | 'b';
@@ -22,9 +22,7 @@ export interface Turn {
   kind?: TurnKind;
   fileName?: string;
   truncated?: boolean;
-  /** Provider used when this AI turn was created */
   provider?: ProviderId;
-  /** Human label at send time, e.g. "Claude" or "Gemini" */
   displayName?: string;
 }
 
@@ -45,9 +43,22 @@ export interface Settings {
   seatB: SeatConfig;
 }
 
+export interface ProjectMeta {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ProjectIndex {
+  projects: ProjectMeta[];
+  activeId: string;
+}
+
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
 export const DEFAULT_GROK_MODEL = 'grok-4.5';
 export const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-4-5';
+export const DEFAULT_PERPLEXITY_MODEL = 'sonar';
 
 export const DEFAULT_SETTINGS: Settings = {
   seatA: {
@@ -104,6 +115,14 @@ export const CLAUDE_MODEL_OPTIONS = [
   'claude-haiku-4-5',
   'claude-3-5-haiku-latest',
   'claude-3-5-sonnet-latest',
+];
+
+export const PERPLEXITY_MODEL_OPTIONS = [
+  'sonar',
+  'sonar-pro',
+  'sonar-reasoning',
+  'sonar-reasoning-pro',
+  'sonar-deep-research',
 ];
 
 export type SpeakTarget = 'both' | SeatId;

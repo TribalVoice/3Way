@@ -40,8 +40,9 @@ export function GettingStarted({
         <DialogHeader>
           <DialogTitle className="text-slate-100">Getting started</DialogTitle>
           <DialogDescription className="text-slate-400">
-            3Way Lite is a local (or hosted) web app with two AI seats. Each seat
-            can be Gemini, Grok, or Claude — you bring your own API keys.
+            3Way Lite is a local (or hosted) web app with two AI seats and
+            multiple projects. Seats can be Gemini, Grok, Claude, or Perplexity
+            — you bring your own API keys.
           </DialogDescription>
         </DialogHeader>
 
@@ -99,7 +100,21 @@ export function GettingStarted({
                   Anthropic Console
                 </a>
               </li>
+              <li>
+                Perplexity:{' '}
+                <a
+                  className="text-sky-400 hover:underline"
+                  href="https://www.perplexity.ai/settings/api"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Perplexity API settings
+                </a>
+              </li>
               <li>Save, then choose Both / a seat and send a message.</li>
+              <li>
+                Use the project switcher (folder) for separate conversations.
+              </li>
             </ol>
           </section>
 

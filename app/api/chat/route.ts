@@ -4,7 +4,7 @@ export const runtime = 'nodejs';
 
 const FETCH_TIMEOUT_MS = 120_000;
 
-type ProviderId = 'gemini' | 'grok' | 'claude';
+type ProviderId = 'gemini' | 'grok' | 'claude' | 'perplexity';
 
 interface MessageItem {
   role: 'user' | 'assistant';
@@ -169,7 +169,9 @@ async function callGemini(
   }
 }
 
-async function callGrok(
+async function callOpenAiCompatible(
+  label: string,
+  url: string,
   apiKey: string,
   model: string,
   messages: MessageItem[],
@@ -180,7 +182,7 @@ async function callGrok(
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   try {
-    const res = await fetch('https://api.x.ai/v1/chat/completions', {
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -196,13 +198,13 @@ async function callGrok(
 
     if (!res.ok) {
       const errText = await res.text();
-      throw new Error(friendlyHttpError('Grok', res.status, errText));
+      throw new Error(friendlyHttpError(label, res.status, errText));
     }
 
     const data = await res.json();
     const content = data?.choices?.[0]?.message?.content;
     if (content == null || String(content).trim() === '') {
-      throw new Error('Grok returned an empty response.');
+      throw new Error(`${label} returned an empty response.`);
     }
     return typeof content === 'string' ? content : String(content);
   } catch (err: unknown) {
@@ -213,6 +215,38 @@ async function callGrok(
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function callGrok(
+  apiKey: string,
+  model: string,
+  messages: MessageItem[],
+  systemPrompt?: string
+): Promise<string> {
+  return callOpenAiCompatible(
+    'Grok',
+    'https://api.x.ai/v1/chat/completions',
+    apiKey,
+    model,
+    messages,
+    systemPrompt
+  );
+}
+
+async function callPerplexity(
+  apiKey: string,
+  model: string,
+  messages: MessageItem[],
+  systemPrompt?: string
+): Promise<string> {
+  return callOpenAiCompatible(
+    'Perplexity',
+    'https://api.perplexity.ai/chat/completions',
+    apiKey,
+    model,
+    messages,
+    systemPrompt
+  );
 }
 
 async function callClaude(
@@ -387,7 +421,9 @@ function streamGemini(
   });
 }
 
-function streamGrok(
+function streamOpenAiCompatible(
+  label: string,
+  url: string,
   apiKey: string,
   model: string,
   messages: MessageItem[],
@@ -403,7 +439,7 @@ function streamGrok(
       let full = '';
 
       try {
-        const res = await fetch('https://api.x.ai/v1/chat/completions', {
+        const res = await fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -421,7 +457,9 @@ function streamGrok(
           const errText = await res.text();
           controller.enqueue(
             encoder.encode(
-              sseLine({ error: friendlyHttpError('Grok', res.status, errText) })
+              sseLine({
+                error: friendlyHttpError(label, res.status, errText),
+              })
             )
           );
           controller.close();
@@ -430,7 +468,9 @@ function streamGrok(
 
         if (!res.body) {
           controller.enqueue(
-            encoder.encode(sseLine({ error: 'Grok returned no stream body.' }))
+            encoder.encode(
+              sseLine({ error: `${label} returned no stream body.` })
+            )
           );
           controller.close();
           return;
@@ -467,7 +507,9 @@ function streamGrok(
 
         if (!full.trim()) {
           controller.enqueue(
-            encoder.encode(sseLine({ error: 'Grok returned an empty stream.' }))
+            encoder.encode(
+              sseLine({ error: `${label} returned an empty stream.` })
+            )
           );
         } else {
           controller.enqueue(
@@ -481,7 +523,7 @@ function streamGrok(
             ? `Request timed out after ${FETCH_TIMEOUT_MS / 1000}s.`
             : err instanceof Error
               ? err.message
-              : 'Grok stream failed.';
+              : `${label} stream failed.`;
         controller.enqueue(encoder.encode(sseLine({ error: message })));
         controller.close();
       } finally {
@@ -489,6 +531,38 @@ function streamGrok(
       }
     },
   });
+}
+
+function streamGrok(
+  apiKey: string,
+  model: string,
+  messages: MessageItem[],
+  systemPrompt?: string
+): ReadableStream<Uint8Array> {
+  return streamOpenAiCompatible(
+    'Grok',
+    'https://api.x.ai/v1/chat/completions',
+    apiKey,
+    model,
+    messages,
+    systemPrompt
+  );
+}
+
+function streamPerplexity(
+  apiKey: string,
+  model: string,
+  messages: MessageItem[],
+  systemPrompt?: string
+): ReadableStream<Uint8Array> {
+  return streamOpenAiCompatible(
+    'Perplexity',
+    'https://api.perplexity.ai/chat/completions',
+    apiKey,
+    model,
+    messages,
+    systemPrompt
+  );
 }
 
 function streamClaude(
@@ -623,7 +697,8 @@ export async function POST(req: NextRequest) {
   if (
     provider !== 'gemini' &&
     provider !== 'grok' &&
-    provider !== 'claude'
+    provider !== 'claude' &&
+    provider !== 'perplexity'
   ) {
     return NextResponse.json({ error: 'Invalid provider.' }, { status: 400 });
   }
@@ -666,6 +741,13 @@ export async function POST(req: NextRequest) {
           messages,
           systemPrompt
         );
+      } else if (provider === 'perplexity') {
+        readable = streamPerplexity(
+          apiKey.trim(),
+          model.trim(),
+          messages,
+          systemPrompt
+        );
       } else {
         readable = streamClaude(
           apiKey.trim(),
@@ -700,6 +782,13 @@ export async function POST(req: NextRequest) {
       );
     } else if (provider === 'grok') {
       content = await callGrok(
+        apiKey.trim(),
+        model.trim(),
+        messages,
+        systemPrompt
+      );
+    } else if (provider === 'perplexity') {
+      content = await callPerplexity(
         apiKey.trim(),
         model.trim(),
         messages,

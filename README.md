@@ -5,12 +5,13 @@ User-paced three-way chat: **you** and **two AI seats** share one room transcrip
 ## Features
 
 - Shared linear room (not tournament branching)
-- **Seat A / Seat B** — each can be **Gemini**, **Grok**, or **Claude**
+- **Seat A / Seat B** — each can be **Gemini**, **Grok**, **Claude**, or **Perplexity**
+- **Multiple projects** — separate transcripts; keys stay global
 - **Both / seat** reply targets + **Invite** to continue
 - **Streaming** replies (live tokens)
 - **Attach files** → extract text (PDF, Markdown, code, CSV, …) → inject into the room
 - **Copy** per turn · **Search** the room
-- **Export / import** room as JSON; export Markdown for reading
+- **Export / import** active project as JSON; export Markdown for reading
 - BYOK: API keys stored in your browser only
 - In-app **Getting started** help + **Ko-fi** support link
 - Windows **launcher** + desktop shortcut scripts
@@ -29,8 +30,11 @@ npm install
    - [Google AI Studio](https://aistudio.google.com/apikey) (Gemini)
    - [xAI Console](https://console.x.ai/) (Grok)
    - [Anthropic Console](https://console.anthropic.com/) (Claude)
+   - [Perplexity API](https://www.perplexity.ai/settings/api) (Perplexity)
 
 Defaults: Seat A = Gemini (`gemini-3.6-flash`), Seat B = Grok (`grok-4.5`). Custom model names supported.
+
+Use the **project switcher** (folder control in the header) for separate rooms. API keys are shared across projects.
 
 ## Launch on Windows (desktop icon)
 

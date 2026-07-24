@@ -9,7 +9,7 @@ export type StreamHandlers = {
 };
 
 export async function streamProvider(options: {
-  provider: 'gemini' | 'grok' | 'claude';
+  provider: 'gemini' | 'grok' | 'claude' | 'perplexity';
   apiKey: string;
   model: string;
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;

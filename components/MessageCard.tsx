@@ -131,7 +131,15 @@ function seatAccent(turn: Turn): {
       label: 'text-orange-300',
     };
   }
-  // Grok / default seat B slate
+  if (name.includes('perplexity') || turn.provider === 'perplexity') {
+    return {
+      bg: 'from-teal-500/10 to-cyan-600/10',
+      border: 'border-teal-500/30',
+      icon: 'bg-gradient-to-br from-teal-500 to-cyan-700',
+      label: 'text-teal-300',
+    };
+  }
+  // Grok / default
   return {
     bg: 'from-slate-700/30 to-slate-800/30',
     border: 'border-slate-600/40',

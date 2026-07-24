@@ -27,12 +27,14 @@ import { Input } from '@/components/ui/input';
 import { SettingsModal } from '@/components/SettingsModal';
 import { MessageCard } from '@/components/MessageCard';
 import { GettingStarted } from '@/components/GettingStarted';
+import { ProjectSwitcher } from '@/components/ProjectSwitcher';
 import {
   Settings as SettingsType,
   Room,
   SpeakTarget,
   Turn,
   SeatId,
+  ProjectIndex,
 } from '@/lib/types';
 import {
   BUY_ME_A_COFFEE_URL,
@@ -53,13 +55,19 @@ import {
   buildProviderMessages,
   systemPromptForSeat,
 } from '@/lib/room';
+import { loadSettings, saveSettings, clearLegacyTree } from '@/lib/storage';
 import {
-  loadRoom,
-  saveRoom,
-  loadSettings,
-  saveSettings,
-  clearLegacyTree,
-} from '@/lib/storage';
+  loadProjectIndex,
+  saveProjectIndex,
+  loadProjectRoom,
+  saveProjectRoom,
+  createProject,
+  renameProject,
+  deleteProject,
+  setActiveProject,
+  touchProject,
+  getActiveMeta,
+} from '@/lib/projects';
 import { extractTextFromFile } from '@/lib/extractFile';
 import {
   exportRoomAsJson,
@@ -71,6 +79,7 @@ import { cn } from '@/lib/utils';
 
 export default function Home() {
   const [room, setRoom] = useState<Room>(createEmptyRoom());
+  const [projectIndex, setProjectIndex] = useState<ProjectIndex | null>(null);
   const [settings, setSettings] = useState<SettingsType | null>(null);
   const [input, setInput] = useState('');
   const [speakTarget, setSpeakTarget] = useState<SpeakTarget>('both');
@@ -90,6 +99,7 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const roomRef = useRef(room);
+  const projectIndexRef = useRef<ProjectIndex | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -101,16 +111,27 @@ export default function Home() {
   }, [room]);
 
   useEffect(() => {
-    const loadedRoom = loadRoom();
-    setRoom(loadedRoom);
+    projectIndexRef.current = projectIndex;
+  }, [projectIndex]);
+
+  useEffect(() => {
+    const index = loadProjectIndex();
+    setProjectIndex(index);
+    setRoom(loadProjectRoom(index.activeId));
     setSettings(loadSettings());
     clearLegacyTree();
     setHydrated(true);
   }, []);
 
+  // Persist active project room (and index timestamps) without feedback loops
   useEffect(() => {
     if (!hydrated) return;
-    saveRoom(room);
+    const idx = projectIndexRef.current;
+    if (!idx) return;
+    saveProjectRoom(idx.activeId, room);
+    const touched = touchProject(idx, idx.activeId);
+    saveProjectIndex(touched);
+    projectIndexRef.current = touched;
   }, [room, hydrated]);
 
   const streamLens = room.turns
@@ -424,12 +445,16 @@ export default function Home() {
     }
   };
 
+  const activeTitle = projectIndex
+    ? getActiveMeta(projectIndex).title
+    : 'Project';
+
   const handleExportJson = () => {
     if (room.turns.length === 0) {
       showToast('Nothing to export yet.');
       return;
     }
-    exportRoomAsJson(room);
+    exportRoomAsJson({ ...room, title: activeTitle });
     showToast('Exported JSON');
   };
 
@@ -438,26 +463,27 @@ export default function Home() {
       showToast('Nothing to export yet.');
       return;
     }
-    exportRoomAsMarkdown(room);
+    exportRoomAsMarkdown({ ...room, title: activeTitle });
     showToast('Exported Markdown');
   };
 
   const handleImportFile = async (files: FileList | null) => {
     const file = files?.[0];
-    if (!file) return;
+    if (!file || !projectIndex) return;
     try {
       const text = await file.text();
       const imported = parseRoomImport(text);
       if (
         roomRef.current.turns.length > 0 &&
         !window.confirm(
-          'Replace the current room with the imported transcript?'
+          'Replace the current project transcript with the imported data?'
         )
       ) {
         return;
       }
       setRoom(imported);
       roomRef.current = imported;
+      saveProjectRoom(projectIndex.activeId, imported);
       showToast(`Imported ${imported.turns.length} turns`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Import failed';
@@ -468,17 +494,64 @@ export default function Home() {
   };
 
   const handleClear = () => {
-    if (isBusy) return;
+    if (isBusy || !projectIndex) return;
     if (room.turns.length === 0) return;
     if (
       typeof window !== 'undefined' &&
-      !window.confirm('Clear the entire room transcript?')
+      !window.confirm('Clear this project’s transcript?')
     ) {
       return;
     }
     const empty = createEmptyRoom();
     setRoom(empty);
     roomRef.current = empty;
+    saveProjectRoom(projectIndex.activeId, empty);
+  };
+
+  const handleSelectProject = (id: string) => {
+    if (isBusy || !projectIndex) return;
+    if (id === projectIndex.activeId) return;
+    // Persist current first
+    saveProjectRoom(projectIndex.activeId, roomRef.current);
+    const result = setActiveProject(projectIndex, id);
+    if (!result) return;
+    setProjectIndex(result.index);
+    setRoom(result.room);
+    roomRef.current = result.room;
+    setSearchQuery('');
+    setSearchOpen(false);
+  };
+
+  const handleCreateProject = () => {
+    if (isBusy || !projectIndex) return;
+    saveProjectRoom(projectIndex.activeId, roomRef.current);
+    const { index, id } = createProject(projectIndex);
+    setProjectIndex(index);
+    const empty = createEmptyRoom();
+    setRoom(empty);
+    roomRef.current = empty;
+    showToast('New project created');
+    void id;
+  };
+
+  const handleRenameProject = (id: string, title: string) => {
+    if (!projectIndex) return;
+    const next = renameProject(projectIndex, id, title);
+    setProjectIndex(next);
+  };
+
+  const handleDeleteProject = (id: string) => {
+    if (isBusy || !projectIndex) return;
+    if (id === projectIndex.activeId) {
+      saveProjectRoom(id, roomRef.current);
+    }
+    const { index, room: nextRoom } = deleteProject(projectIndex, id);
+    setProjectIndex(index);
+    setRoom(nextRoom);
+    roomRef.current = nextRoom;
+    showToast(
+      projectIndex.projects.length <= 1 ? 'Project cleared' : 'Project deleted'
+    );
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -616,22 +689,32 @@ export default function Home() {
   return (
     <div className="flex h-[100dvh] flex-col bg-slate-900 text-slate-100">
       <header className="flex items-center justify-between border-b border-slate-800 bg-slate-900/90 px-4 py-3 backdrop-blur-sm">
-        <div className="flex items-center gap-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
           <img
             src="/icon-192.png"
             alt="3Way Lite"
             width={36}
             height={36}
-            className="h-9 w-9 rounded-xl shadow-lg ring-1 ring-slate-700/80"
+            className="h-9 w-9 shrink-0 rounded-xl shadow-lg ring-1 ring-slate-700/80"
           />
-          <div>
+          <div className="min-w-0">
             <h1 className="text-base font-bold tracking-tight text-slate-100">
               3Way Lite
             </h1>
-            <p className="text-[10px] text-slate-500">
-              You · {labelA} · {labelB} · dual seats
+            <p className="truncate text-[10px] text-slate-500">
+              You · {labelA} · {labelB}
             </p>
           </div>
+          {projectIndex && (
+            <ProjectSwitcher
+              index={projectIndex}
+              disabled={pending}
+              onSelect={handleSelectProject}
+              onCreate={handleCreateProject}
+              onRename={handleRenameProject}
+              onDelete={handleDeleteProject}
+            />
+          )}
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
           <div className="hidden sm:flex items-center gap-1.5">

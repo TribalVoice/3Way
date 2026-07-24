@@ -170,6 +170,9 @@ function SeatEditor({
         >
           {custom ? 'Use dropdown' : 'Enter custom model name'}
         </button>
+        {meta?.note && (
+          <p className="text-[10px] text-slate-500">{meta.note}</p>
+        )}
       </div>
     </div>
   );
@@ -219,8 +222,8 @@ export function SettingsModal({
             Seats & API keys
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Each seat is one AI voice. Pick Gemini, Grok, or Claude, paste your
-            key, choose a model. Keys stay in this browser only.
+            Each seat is one AI voice. Pick Gemini, Grok, Claude, or Perplexity;
+            paste your key and choose a model. Keys stay in this browser only.
           </DialogDescription>
         </DialogHeader>
 

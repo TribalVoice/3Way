@@ -8,9 +8,11 @@ import {
   GEMINI_MODEL_OPTIONS,
   GROK_MODEL_OPTIONS,
   CLAUDE_MODEL_OPTIONS,
+  PERPLEXITY_MODEL_OPTIONS,
   DEFAULT_GEMINI_MODEL,
   DEFAULT_GROK_MODEL,
   DEFAULT_CLAUDE_MODEL,
+  DEFAULT_PERPLEXITY_MODEL,
   GEMINI_RETIRED_MODELS,
 } from './types';
 
@@ -18,10 +20,17 @@ export const PROVIDER_OPTIONS: {
   id: ProviderId;
   label: string;
   keyPlaceholder: string;
+  note?: string;
 }[] = [
   { id: 'gemini', label: 'Google Gemini', keyPlaceholder: 'AIza...' },
   { id: 'grok', label: 'xAI Grok', keyPlaceholder: 'xai-...' },
   { id: 'claude', label: 'Anthropic Claude', keyPlaceholder: 'sk-ant-...' },
+  {
+    id: 'perplexity',
+    label: 'Perplexity',
+    keyPlaceholder: 'pplx-...',
+    note: 'May use live web search depending on model.',
+  },
 ];
 
 export function providerLabel(id: ProviderId): string {
@@ -32,6 +41,8 @@ export function providerLabel(id: ProviderId): string {
       return 'Grok';
     case 'claude':
       return 'Claude';
+    case 'perplexity':
+      return 'Perplexity';
   }
 }
 
@@ -43,6 +54,8 @@ export function modelOptionsFor(provider: ProviderId): string[] {
       return GROK_MODEL_OPTIONS;
     case 'claude':
       return CLAUDE_MODEL_OPTIONS;
+    case 'perplexity':
+      return PERPLEXITY_MODEL_OPTIONS;
   }
 }
 
@@ -54,6 +67,8 @@ export function defaultModelFor(provider: ProviderId): string {
       return DEFAULT_GROK_MODEL;
     case 'claude':
       return DEFAULT_CLAUDE_MODEL;
+    case 'perplexity':
+      return DEFAULT_PERPLEXITY_MODEL;
   }
 }
 
@@ -77,7 +92,6 @@ export function seatDisplayName(seat: SeatConfig): string {
   return providerLabel(seat.provider);
 }
 
-/** Label for a historical or live turn */
 export function turnDisplayName(turn: Turn): string {
   if (turn.kind === 'document') return turn.fileName || 'Document';
   if (turn.speaker === 'user') return 'You';
@@ -96,23 +110,4 @@ export function isAiSpeaker(speaker: Speaker): boolean {
 
 export function isSeatSpeaker(speaker: Speaker): speaker is SeatId {
   return speaker === 'a' || speaker === 'b';
-}
-
-/** Map legacy gemini/grok speakers onto seats when matching context */
-export function speakerMatchesSeat(
-  turnSpeaker: Speaker,
-  seat: SeatId,
-  seatProvider: ProviderId
-): boolean {
-  if (turnSpeaker === seat) return true;
-  // Legacy transcripts
-  if (seat === 'a' && turnSpeaker === 'gemini' && seatProvider === 'gemini') {
-    return true;
-  }
-  if (seat === 'b' && turnSpeaker === 'grok' && seatProvider === 'grok') {
-    return true;
-  }
-  if (turnSpeaker === 'gemini' && seatProvider === 'gemini') return true;
-  if (turnSpeaker === 'grok' && seatProvider === 'grok') return true;
-  return false;
 }
