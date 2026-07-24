@@ -72,14 +72,17 @@ Paperclip attaches supported files. Text is extracted locally (PDFs via pdf.js).
 
 Configured for Netlify (`netlify.toml` + `@netlify/plugin-nextjs`).
 
-## Support (Buy me a coffee)
+## Support (Ko-fi)
 
-Optional in-app tip link. Set your page URL in either place:
+Default tip link: [ko-fi.com/tribalvoice](https://ko-fi.com/tribalvoice)
 
-1. `lib/support.ts` → `BUY_ME_A_COFFEE_URL`, or  
-2. Env: `NEXT_PUBLIC_BUY_ME_A_COFFEE_URL=https://www.buymeacoffee.com/yourname`
+Shown in the header, empty state, footer, and Getting started. Override with env:
 
-When empty, support buttons stay hidden. When set, a coffee icon appears in the header, empty state, footer, and Getting started.
+```bash
+NEXT_PUBLIC_BUY_ME_A_COFFEE_URL=https://ko-fi.com/yourname
+```
+
+Or edit `lib/support.ts`.
 
 ## Note
 
