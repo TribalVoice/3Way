@@ -16,6 +16,7 @@ import {
   DEFAULT_PERPLEXITY_MODEL,
   DEFAULT_NVIDIA_MODEL,
   GEMINI_RETIRED_MODELS,
+  NVIDIA_RETIRED_MODELS,
 } from './types';
 
 export const PROVIDER_OPTIONS: {
@@ -37,7 +38,7 @@ export const PROVIDER_OPTIONS: {
     id: 'nvidia',
     label: 'NVIDIA Build',
     keyPlaceholder: 'nvapi-...',
-    note: 'Free NIM endpoints for development; rate limits apply. Use the exact model id from build.nvidia.com (View code).',
+    note: 'Free NIM endpoints for development; rate limits apply. Catalog changes often — if a dropdown model 404s, use “Enter custom model name” with the id from build.nvidia.com → model page → View code.',
   },
 ];
 
@@ -90,6 +91,9 @@ export function normalizeModel(provider: ProviderId, model: string): string {
   const m = model.trim() || defaultModelFor(provider);
   if (provider === 'gemini' && GEMINI_RETIRED_MODELS.has(m)) {
     return DEFAULT_GEMINI_MODEL;
+  }
+  if (provider === 'nvidia' && NVIDIA_RETIRED_MODELS[m]) {
+    return NVIDIA_RETIRED_MODELS[m];
   }
   return m;
 }

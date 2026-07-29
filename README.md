@@ -33,7 +33,7 @@ npm install
    - [Perplexity API](https://www.perplexity.ai/settings/api) (Perplexity)
    - [NVIDIA Build](https://build.nvidia.com/) (NIM free endpoints; use model ids from View code)
 
-Defaults: Seat A = Gemini (`gemini-3.6-flash`), Seat B = Grok (`grok-4.5`). Custom model names supported (important for NVIDIA catalog ids).
+Defaults: Seat A = Gemini (`gemini-3.6-flash`), Seat B = Grok (`grok-4.5`). Custom model names supported (important for NVIDIA — catalog ids change; e.g. `deepseek-ai/deepseek-v4-flash`).
 
 Use the **project switcher** (folder control in the header) for separate rooms. API keys are shared across projects.
 

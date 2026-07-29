@@ -65,7 +65,7 @@ export const DEFAULT_GROK_MODEL = 'grok-4.5';
 export const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-4-5';
 export const DEFAULT_PERPLEXITY_MODEL = 'sonar';
 /** Popular free-endpoint chat models on build.nvidia.com (ids change; custom field allowed) */
-export const DEFAULT_NVIDIA_MODEL = 'meta/llama-3.1-8b-instruct';
+export const DEFAULT_NVIDIA_MODEL = 'deepseek-ai/deepseek-v4-flash';
 
 export const DEFAULT_SETTINGS: Settings = {
   seatA: {
@@ -132,17 +132,28 @@ export const PERPLEXITY_MODEL_OPTIONS = [
   'sonar-deep-research',
 ];
 
-/** Curated NVIDIA Build / NIM chat model ids + always allow custom in Settings */
+/**
+ * Curated NVIDIA Build / NIM chat model ids (July 2026 snapshot).
+ * Catalog churns often — Settings always supports custom ids from build.nvidia.com View code.
+ */
 export const NVIDIA_MODEL_OPTIONS = [
+  'deepseek-ai/deepseek-v4-flash',
+  'deepseek-ai/deepseek-v4-pro',
   'meta/llama-3.1-8b-instruct',
   'meta/llama-3.1-70b-instruct',
   'meta/llama-3.3-70b-instruct',
   'nvidia/llama-3.1-nemotron-70b-instruct',
   'nvidia/nemotron-mini-4b-instruct',
-  'deepseek-ai/deepseek-r1',
   'mistralai/mistral-7b-instruct-v0.3',
   'google/gemma-2-9b-it',
 ];
+
+/** Retired / renamed NVIDIA ids → current defaults */
+export const NVIDIA_RETIRED_MODELS: Record<string, string> = {
+  'deepseek-ai/deepseek-r1': 'deepseek-ai/deepseek-v4-flash',
+  'deepseek-ai/deepseek-r1-distill-llama-8b': 'deepseek-ai/deepseek-v4-flash',
+  'deepseek-ai/deepseek-r1-distill-qwen-32b': 'deepseek-ai/deepseek-v4-pro',
+};
 
 export type SpeakTarget = 'both' | SeatId;
 
