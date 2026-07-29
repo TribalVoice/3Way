@@ -139,6 +139,14 @@ function seatAccent(turn: Turn): {
       label: 'text-teal-300',
     };
   }
+  if (name.includes('nvidia') || turn.provider === 'nvidia') {
+    return {
+      bg: 'from-lime-500/10 to-green-700/10',
+      border: 'border-lime-500/35',
+      icon: 'bg-gradient-to-br from-lime-500 to-green-700',
+      label: 'text-lime-300',
+    };
+  }
   // Grok / default
   return {
     bg: 'from-slate-700/30 to-slate-800/30',

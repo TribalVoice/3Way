@@ -4,7 +4,7 @@ export const runtime = 'nodejs';
 
 const FETCH_TIMEOUT_MS = 120_000;
 
-type ProviderId = 'gemini' | 'grok' | 'claude' | 'perplexity';
+type ProviderId = 'gemini' | 'grok' | 'claude' | 'perplexity' | 'nvidia';
 
 interface MessageItem {
   role: 'user' | 'assistant';
@@ -242,6 +242,22 @@ async function callPerplexity(
   return callOpenAiCompatible(
     'Perplexity',
     'https://api.perplexity.ai/chat/completions',
+    apiKey,
+    model,
+    messages,
+    systemPrompt
+  );
+}
+
+async function callNvidia(
+  apiKey: string,
+  model: string,
+  messages: MessageItem[],
+  systemPrompt?: string
+): Promise<string> {
+  return callOpenAiCompatible(
+    'NVIDIA Build',
+    'https://integrate.api.nvidia.com/v1/chat/completions',
     apiKey,
     model,
     messages,
@@ -565,6 +581,22 @@ function streamPerplexity(
   );
 }
 
+function streamNvidia(
+  apiKey: string,
+  model: string,
+  messages: MessageItem[],
+  systemPrompt?: string
+): ReadableStream<Uint8Array> {
+  return streamOpenAiCompatible(
+    'NVIDIA Build',
+    'https://integrate.api.nvidia.com/v1/chat/completions',
+    apiKey,
+    model,
+    messages,
+    systemPrompt
+  );
+}
+
 function streamClaude(
   apiKey: string,
   model: string,
@@ -698,7 +730,8 @@ export async function POST(req: NextRequest) {
     provider !== 'gemini' &&
     provider !== 'grok' &&
     provider !== 'claude' &&
-    provider !== 'perplexity'
+    provider !== 'perplexity' &&
+    provider !== 'nvidia'
   ) {
     return NextResponse.json({ error: 'Invalid provider.' }, { status: 400 });
   }
@@ -748,6 +781,13 @@ export async function POST(req: NextRequest) {
           messages,
           systemPrompt
         );
+      } else if (provider === 'nvidia') {
+        readable = streamNvidia(
+          apiKey.trim(),
+          model.trim(),
+          messages,
+          systemPrompt
+        );
       } else {
         readable = streamClaude(
           apiKey.trim(),
@@ -789,6 +829,13 @@ export async function POST(req: NextRequest) {
       );
     } else if (provider === 'perplexity') {
       content = await callPerplexity(
+        apiKey.trim(),
+        model.trim(),
+        messages,
+        systemPrompt
+      );
+    } else if (provider === 'nvidia') {
+      content = await callNvidia(
         apiKey.trim(),
         model.trim(),
         messages,

@@ -15,7 +15,8 @@ function asProvider(value: unknown, fallback: ProviderId): ProviderId {
     value === 'gemini' ||
     value === 'grok' ||
     value === 'claude' ||
-    value === 'perplexity'
+    value === 'perplexity' ||
+    value === 'nvidia'
   ) {
     return value;
   }

@@ -9,10 +9,12 @@ import {
   GROK_MODEL_OPTIONS,
   CLAUDE_MODEL_OPTIONS,
   PERPLEXITY_MODEL_OPTIONS,
+  NVIDIA_MODEL_OPTIONS,
   DEFAULT_GEMINI_MODEL,
   DEFAULT_GROK_MODEL,
   DEFAULT_CLAUDE_MODEL,
   DEFAULT_PERPLEXITY_MODEL,
+  DEFAULT_NVIDIA_MODEL,
   GEMINI_RETIRED_MODELS,
 } from './types';
 
@@ -31,6 +33,12 @@ export const PROVIDER_OPTIONS: {
     keyPlaceholder: 'pplx-...',
     note: 'May use live web search depending on model.',
   },
+  {
+    id: 'nvidia',
+    label: 'NVIDIA Build',
+    keyPlaceholder: 'nvapi-...',
+    note: 'Free NIM endpoints for development; rate limits apply. Use the exact model id from build.nvidia.com (View code).',
+  },
 ];
 
 export function providerLabel(id: ProviderId): string {
@@ -43,6 +51,8 @@ export function providerLabel(id: ProviderId): string {
       return 'Claude';
     case 'perplexity':
       return 'Perplexity';
+    case 'nvidia':
+      return 'NVIDIA';
   }
 }
 
@@ -56,6 +66,8 @@ export function modelOptionsFor(provider: ProviderId): string[] {
       return CLAUDE_MODEL_OPTIONS;
     case 'perplexity':
       return PERPLEXITY_MODEL_OPTIONS;
+    case 'nvidia':
+      return NVIDIA_MODEL_OPTIONS;
   }
 }
 
@@ -69,6 +81,8 @@ export function defaultModelFor(provider: ProviderId): string {
       return DEFAULT_CLAUDE_MODEL;
     case 'perplexity':
       return DEFAULT_PERPLEXITY_MODEL;
+    case 'nvidia':
+      return DEFAULT_NVIDIA_MODEL;
   }
 }
 

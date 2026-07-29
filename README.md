@@ -5,7 +5,7 @@ User-paced three-way chat: **you** and **two AI seats** share one room transcrip
 ## Features
 
 - Shared linear room (not tournament branching)
-- **Seat A / Seat B** — each can be **Gemini**, **Grok**, **Claude**, or **Perplexity**
+- **Seat A / Seat B** — each can be **Gemini**, **Grok**, **Claude**, **Perplexity**, or **NVIDIA Build**
 - **Multiple projects** — separate transcripts; keys stay global
 - **Both / seat** reply targets + **Invite** to continue
 - **Streaming** replies (live tokens)
@@ -31,8 +31,9 @@ npm install
    - [xAI Console](https://console.x.ai/) (Grok)
    - [Anthropic Console](https://console.anthropic.com/) (Claude)
    - [Perplexity API](https://www.perplexity.ai/settings/api) (Perplexity)
+   - [NVIDIA Build](https://build.nvidia.com/) (NIM free endpoints; use model ids from View code)
 
-Defaults: Seat A = Gemini (`gemini-3.6-flash`), Seat B = Grok (`grok-4.5`). Custom model names supported.
+Defaults: Seat A = Gemini (`gemini-3.6-flash`), Seat B = Grok (`grok-4.5`). Custom model names supported (important for NVIDIA catalog ids).
 
 Use the **project switcher** (folder control in the header) for separate rooms. API keys are shared across projects.
 

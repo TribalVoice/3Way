@@ -1,5 +1,10 @@
 /** Backend API providers */
-export type ProviderId = 'gemini' | 'grok' | 'claude' | 'perplexity';
+export type ProviderId =
+  | 'gemini'
+  | 'grok'
+  | 'claude'
+  | 'perplexity'
+  | 'nvidia';
 
 /** Room speakers: user + two configurable seats */
 export type SeatId = 'a' | 'b';
@@ -59,6 +64,8 @@ export const DEFAULT_GEMINI_MODEL = 'gemini-3.6-flash';
 export const DEFAULT_GROK_MODEL = 'grok-4.5';
 export const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-4-5';
 export const DEFAULT_PERPLEXITY_MODEL = 'sonar';
+/** Popular free-endpoint chat models on build.nvidia.com (ids change; custom field allowed) */
+export const DEFAULT_NVIDIA_MODEL = 'meta/llama-3.1-8b-instruct';
 
 export const DEFAULT_SETTINGS: Settings = {
   seatA: {
@@ -123,6 +130,18 @@ export const PERPLEXITY_MODEL_OPTIONS = [
   'sonar-reasoning',
   'sonar-reasoning-pro',
   'sonar-deep-research',
+];
+
+/** Curated NVIDIA Build / NIM chat model ids + always allow custom in Settings */
+export const NVIDIA_MODEL_OPTIONS = [
+  'meta/llama-3.1-8b-instruct',
+  'meta/llama-3.1-70b-instruct',
+  'meta/llama-3.3-70b-instruct',
+  'nvidia/llama-3.1-nemotron-70b-instruct',
+  'nvidia/nemotron-mini-4b-instruct',
+  'deepseek-ai/deepseek-r1',
+  'mistralai/mistral-7b-instruct-v0.3',
+  'google/gemma-2-9b-it',
 ];
 
 export type SpeakTarget = 'both' | SeatId;

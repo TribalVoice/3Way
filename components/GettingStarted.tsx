@@ -41,8 +41,8 @@ export function GettingStarted({
           <DialogTitle className="text-slate-100">Getting started</DialogTitle>
           <DialogDescription className="text-slate-400">
             3Way Lite is a local (or hosted) web app with two AI seats and
-            multiple projects. Seats can be Gemini, Grok, Claude, or Perplexity
-            — you bring your own API keys.
+            multiple projects. Seats can be Gemini, Grok, Claude, Perplexity, or
+            NVIDIA Build — you bring your own API keys.
           </DialogDescription>
         </DialogHeader>
 
@@ -110,6 +110,18 @@ export function GettingStarted({
                 >
                   Perplexity API settings
                 </a>
+              </li>
+              <li>
+                NVIDIA Build (often free endpoints):{' '}
+                <a
+                  className="text-sky-400 hover:underline"
+                  href="https://build.nvidia.com/"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  build.nvidia.com
+                </a>{' '}
+                — use the exact model id from each model&apos;s View code panel
               </li>
               <li>Save, then choose Both / a seat and send a message.</li>
               <li>

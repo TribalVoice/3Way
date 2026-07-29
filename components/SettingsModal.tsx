@@ -222,8 +222,9 @@ export function SettingsModal({
             Seats & API keys
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Each seat is one AI voice. Pick Gemini, Grok, Claude, or Perplexity;
-            paste your key and choose a model. Keys stay in this browser only.
+            Each seat is one AI voice. Pick Gemini, Grok, Claude, Perplexity, or
+            NVIDIA Build; paste your key and choose a model. Keys stay in this
+            browser only.
           </DialogDescription>
         </DialogHeader>
 

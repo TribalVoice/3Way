@@ -932,8 +932,8 @@ export default function Home() {
               </h2>
               <p className="mb-5 max-w-md text-sm text-slate-500">
                 You and two AI seats share one transcript. Each seat can be
-                Gemini, Grok, or Claude. Attach docs, stream replies, export
-                backups — you control the pace.
+                Gemini, Grok, Claude, Perplexity, or NVIDIA Build. Attach docs,
+                stream replies, export backups — you control the pace.
               </p>
 
               <div className="mb-6 w-full max-w-md space-y-3 text-left">
