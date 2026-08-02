@@ -9,6 +9,8 @@ import {
   MessagesSquare,
   ExternalLink,
   Coffee,
+  HardDrive,
+  FolderOpen,
 } from 'lucide-react';
 import {
   Dialog,
@@ -221,9 +223,64 @@ export function GettingStarted({
               <li>Invite asks models to speak again without retyping.</li>
               <li>
                 <Download className="mr-1 inline h-3.5 w-3.5" />
-                Export JSON to back up a conversation.
+                <strong className="text-slate-300">Export JSON</strong> (or
+                Markdown) saves a file via your browser&apos;s download — usually
+                your{' '}
+                <strong className="text-slate-300">Downloads</strong> folder
+                (or whatever folder you set for downloads). Filename looks like{' '}
+                <code className="rounded bg-slate-800 px-1 text-[11px] text-slate-200">
+                  3way-room-….json
+                </code>
+                .
+              </li>
+              <li>
+                <FolderOpen className="mr-1 inline h-3.5 w-3.5" />
+                Projects (folder control) keep separate conversations; export
+                only covers the <em>active</em> project.
               </li>
             </ul>
+          </section>
+
+          <section className="space-y-2">
+            <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              <HardDrive className="h-3.5 w-3.5" />
+              5. Where data is stored (when not exported)
+            </h3>
+            <p className="text-slate-400">
+              Conversations and settings are <strong className="text-slate-300">not</strong>{' '}
+              saved as normal files in the 3Way project folder on disk. They live
+              in this browser&apos;s{' '}
+              <strong className="text-slate-300">local storage</strong> for the
+              site (e.g. localhost:3000), on this machine only.
+            </p>
+            <ul className="list-disc space-y-1 pl-5 text-slate-400">
+              <li>
+                Project list and active project id (e.g.{' '}
+                <code className="rounded bg-slate-800 px-1 text-[11px]">
+                  3way-projects-index
+                </code>
+                )
+              </li>
+              <li>
+                Each project&apos;s transcript (e.g.{' '}
+                <code className="rounded bg-slate-800 px-1 text-[11px]">
+                  3way-project-…
+                </code>
+                )
+              </li>
+              <li>
+                Seat API keys and models (
+                <code className="rounded bg-slate-800 px-1 text-[11px]">
+                  3way-settings
+                </code>
+                )
+              </li>
+            </ul>
+            <p className="text-[11px] text-slate-500">
+              Clearing site data, using another browser/profile, or a different
+              device will not show the same projects. Export JSON is the way to
+              back up a conversation as a real file.
+            </p>
           </section>
 
           {isSupportEnabled() && (
