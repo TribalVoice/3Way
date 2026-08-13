@@ -43,6 +43,7 @@ import {
 } from '@/lib/support';
 import {
   getSeat,
+  getProviderKey,
   seatDisplayName,
   seatReady,
 } from '@/lib/providers';
@@ -153,10 +154,10 @@ export default function Home() {
     current: SettingsType
   ): SeatId[] => {
     const seats: SeatId[] = [];
-    if ((target === 'both' || target === 'a') && seatReady(current.seatA)) {
+    if ((target === 'both' || target === 'a') && seatReady(current, 'a')) {
       seats.push('a');
     }
-    if ((target === 'both' || target === 'b') && seatReady(current.seatB)) {
+    if ((target === 'both' || target === 'b') && seatReady(current, 'b')) {
       seats.push('b');
     }
     return seats;
@@ -190,6 +191,7 @@ export default function Home() {
 
     const tasks = pending.map(({ seat, turn }) => {
       const cfg = getSeat(current, seat);
+      const apiKey = getProviderKey(current, cfg.provider);
       const messages = buildProviderMessages(
         working,
         seat,
@@ -199,7 +201,7 @@ export default function Home() {
 
       return streamProvider({
         provider: cfg.provider,
-        apiKey: cfg.apiKey,
+        apiKey,
         model: cfg.model,
         messages,
         systemPrompt: systemPromptForSeat(seat, current),
@@ -342,9 +344,9 @@ export default function Home() {
     if (!seat) return;
 
     const cfg = getSeat(settings, seat);
-    const apiKey = cfg.apiKey;
-    const model = turn.modelName || cfg.model;
     const provider = turn.provider || cfg.provider;
+    const apiKey = getProviderKey(settings, provider);
+    const model = turn.modelName || cfg.model;
 
     if (!apiKey.trim()) {
       setSettingsOpen(true);
@@ -561,8 +563,8 @@ export default function Home() {
     }
   };
 
-  const seatAReady = settings ? seatReady(settings.seatA) : false;
-  const seatBReady = settings ? seatReady(settings.seatB) : false;
+  const seatAReady = settings ? seatReady(settings, 'a') : false;
+  const seatBReady = settings ? seatReady(settings, 'b') : false;
   const labelA = settings ? seatDisplayName(settings.seatA) : 'Seat A';
   const labelB = settings ? seatDisplayName(settings.seatB) : 'Seat B';
   const hasChat = room.turns.length > 0;

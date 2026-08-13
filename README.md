@@ -26,7 +26,7 @@ User-paced three-way chat: **you** and **two AI seats** share one room transcrip
 npm install
 ```
 
-4. Configure seats in Settings (provider + API key + model):
+4. In Settings, fill the **API key register** (one key per provider), then set each seat’s provider and model:
    - [Google AI Studio](https://aistudio.google.com/apikey) (Gemini)
    - [xAI Console](https://console.x.ai/) (Grok)
    - [Anthropic Console](https://console.anthropic.com/) (Claude)

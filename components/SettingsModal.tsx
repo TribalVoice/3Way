@@ -9,6 +9,7 @@ import {
   Save,
   Check,
   ChevronDown,
+  BookKey,
 } from 'lucide-react';
 import {
   Dialog,
@@ -26,13 +27,16 @@ import {
   Settings as SettingsType,
   DEFAULT_SETTINGS,
   ProviderId,
+  ProviderKeys,
   SeatConfig,
+  EMPTY_PROVIDER_KEYS,
 } from '@/lib/types';
 import {
   PROVIDER_OPTIONS,
   modelOptionsFor,
   defaultModelFor,
   providerLabel,
+  emptyProviderKeys,
 } from '@/lib/providers';
 
 interface SettingsModalProps {
@@ -42,16 +46,93 @@ interface SettingsModalProps {
   onSave: (settings: SettingsType) => void;
 }
 
+function KeyRegister({
+  keys,
+  onChange,
+}: {
+  keys: ProviderKeys;
+  onChange: (keys: ProviderKeys) => void;
+}) {
+  const [show, setShow] = useState<Partial<Record<ProviderId, boolean>>>({});
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-sky-600/20 border border-sky-500/30">
+          <BookKey className="h-4 w-4 text-sky-400" />
+        </div>
+        <div>
+          <span className="text-sm font-semibold text-slate-200">
+            API key register
+          </span>
+          <p className="text-[10px] text-slate-500">
+            Save each provider once. Seats reuse these when you switch models.
+          </p>
+        </div>
+      </div>
+
+      {PROVIDER_OPTIONS.map((p) => {
+        const hasKey = Boolean(keys[p.id]?.trim());
+        return (
+          <div key={p.id} className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-xs text-slate-400">{p.label}</Label>
+              <span
+                className={
+                  hasKey
+                    ? 'text-[10px] text-emerald-400'
+                    : 'text-[10px] text-slate-600'
+                }
+              >
+                {hasKey ? 'Saved' : 'Not set'}
+              </span>
+            </div>
+            <div className="relative">
+              <Input
+                type={show[p.id] ? 'text' : 'password'}
+                value={keys[p.id] ?? ''}
+                onChange={(e) =>
+                  onChange({ ...keys, [p.id]: e.target.value })
+                }
+                placeholder={p.keyPlaceholder}
+                className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600 pr-10"
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  setShow((s) => ({ ...s, [p.id]: !s[p.id] }))
+                }
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+              >
+                {show[p.id] ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+            {p.note && (
+              <p className="text-[10px] text-slate-500">{p.note}</p>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function SeatEditor({
   title,
   seat,
   onChange,
+  keyReady,
 }: {
   title: string;
   seat: SeatConfig;
   onChange: (seat: SeatConfig) => void;
+  keyReady: boolean;
 }) {
-  const [showKey, setShowKey] = useState(false);
   const options = modelOptionsFor(seat.provider);
   const [custom, setCustom] = useState(!options.includes(seat.model));
   const meta = PROVIDER_OPTIONS.find((p) => p.id === seat.provider);
@@ -70,6 +151,15 @@ function SeatEditor({
         <span className="text-[10px] text-slate-500">
           → {providerLabel(seat.provider)}
         </span>
+        <span
+          className={
+            keyReady
+              ? 'ml-auto text-[10px] text-emerald-400'
+              : 'ml-auto text-[10px] text-amber-500/90'
+          }
+        >
+          {keyReady ? 'Key ready' : 'Add key above'}
+        </span>
       </div>
 
       <div className="space-y-1.5">
@@ -82,7 +172,6 @@ function SeatEditor({
               setCustom(false);
               onChange({
                 provider,
-                apiKey: seat.apiKey,
                 model: defaultModelFor(provider),
               });
             }}
@@ -95,31 +184,6 @@ function SeatEditor({
             ))}
           </select>
           <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-        </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label className="text-xs text-slate-400">API Key</Label>
-        <div className="relative">
-          <Input
-            type={showKey ? 'text' : 'password'}
-            value={seat.apiKey}
-            onChange={(e) => onChange({ ...seat, apiKey: e.target.value })}
-            placeholder={meta?.keyPlaceholder || 'API key'}
-            className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600 pr-10"
-            autoComplete="off"
-          />
-          <button
-            type="button"
-            onClick={() => setShowKey((s) => !s)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-          >
-            {showKey ? (
-              <EyeOff className="h-4 w-4" />
-            ) : (
-              <Eye className="h-4 w-4" />
-            )}
-          </button>
         </div>
       </div>
 
@@ -170,7 +234,7 @@ function SeatEditor({
         >
           {custom ? 'Use dropdown' : 'Enter custom model name'}
         </button>
-        {meta?.note && (
+        {meta?.note && seat.provider === 'nvidia' && (
           <p className="text-[10px] text-slate-500">{meta.note}</p>
         )}
       </div>
@@ -184,12 +248,14 @@ export function SettingsModal({
   settings,
   onSave,
 }: SettingsModalProps) {
+  const [keys, setKeys] = useState<ProviderKeys>(emptyProviderKeys());
   const [seatA, setSeatA] = useState<SeatConfig>(DEFAULT_SETTINGS.seatA);
   const [seatB, setSeatB] = useState<SeatConfig>(DEFAULT_SETTINGS.seatB);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (open) {
+      setKeys({ ...EMPTY_PROVIDER_KEYS, ...settings.keys });
       setSeatA(settings.seatA);
       setSeatB(settings.seatB);
       setSaved(false);
@@ -198,14 +264,19 @@ export function SettingsModal({
 
   const handleSave = () => {
     onSave({
+      keys: {
+        gemini: keys.gemini.trim(),
+        grok: keys.grok.trim(),
+        claude: keys.claude.trim(),
+        perplexity: keys.perplexity.trim(),
+        nvidia: keys.nvidia.trim(),
+      },
       seatA: {
-        ...seatA,
-        apiKey: seatA.apiKey.trim(),
+        provider: seatA.provider,
         model: seatA.model.trim() || defaultModelFor(seatA.provider),
       },
       seatB: {
-        ...seatB,
-        apiKey: seatB.apiKey.trim(),
+        provider: seatB.provider,
         model: seatB.model.trim() || defaultModelFor(seatB.provider),
       },
     });
@@ -219,19 +290,30 @@ export function SettingsModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-slate-100">
             <KeyRound className="h-5 w-5 text-sky-400" />
-            Seats & API keys
+            Keys & seats
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Each seat is one AI voice. Pick Gemini, Grok, Claude, Perplexity, or
-            NVIDIA Build; paste your key and choose a model. Keys stay in this
-            browser only.
+            Register API keys once per provider, then assign each seat a
+            provider and model. Keys stay in this browser only.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
-          <SeatEditor title="Seat A" seat={seatA} onChange={setSeatA} />
+          <KeyRegister keys={keys} onChange={setKeys} />
           <Separator className="bg-slate-700" />
-          <SeatEditor title="Seat B" seat={seatB} onChange={setSeatB} />
+          <SeatEditor
+            title="Seat A"
+            seat={seatA}
+            onChange={setSeatA}
+            keyReady={Boolean(keys[seatA.provider]?.trim())}
+          />
+          <Separator className="bg-slate-700" />
+          <SeatEditor
+            title="Seat B"
+            seat={seatB}
+            onChange={setSeatB}
+            keyReady={Boolean(keys[seatB.provider]?.trim())}
+          />
         </div>
 
         <DialogFooter>

@@ -37,16 +37,28 @@ export interface Room {
   exportedAt?: number;
 }
 
+/** Seat only picks who speaks and which model — keys live in the register */
 export interface SeatConfig {
   provider: ProviderId;
-  apiKey: string;
   model: string;
 }
 
+/** One saved API key per provider (browser localStorage) */
+export type ProviderKeys = Record<ProviderId, string>;
+
 export interface Settings {
+  keys: ProviderKeys;
   seatA: SeatConfig;
   seatB: SeatConfig;
 }
+
+export const EMPTY_PROVIDER_KEYS: ProviderKeys = {
+  gemini: '',
+  grok: '',
+  claude: '',
+  perplexity: '',
+  nvidia: '',
+};
 
 export interface ProjectMeta {
   id: string;
@@ -68,14 +80,13 @@ export const DEFAULT_PERPLEXITY_MODEL = 'sonar';
 export const DEFAULT_NVIDIA_MODEL = 'deepseek-ai/deepseek-v4-flash';
 
 export const DEFAULT_SETTINGS: Settings = {
+  keys: { ...EMPTY_PROVIDER_KEYS },
   seatA: {
     provider: 'gemini',
-    apiKey: '',
     model: DEFAULT_GEMINI_MODEL,
   },
   seatB: {
     provider: 'grok',
-    apiKey: '',
     model: DEFAULT_GROK_MODEL,
   },
 };

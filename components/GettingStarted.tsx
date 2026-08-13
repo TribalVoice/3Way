@@ -67,7 +67,9 @@ export function GettingStarted({
                 >
                   Settings
                 </button>{' '}
-                and configure Seat A and Seat B.
+                and open the <strong className="text-slate-300">API key register</strong>{' '}
+                (save each provider once), then assign Seat A and Seat B
+                providers and models.
               </li>
               <li>
                 Gemini:{' '}
@@ -269,7 +271,8 @@ export function GettingStarted({
                 )
               </li>
               <li>
-                Seat API keys and models (
+                API key register (one key per provider) and seat provider/model
+                choices (
                 <code className="rounded bg-slate-800 px-1 text-[11px]">
                   3way-settings
                 </code>

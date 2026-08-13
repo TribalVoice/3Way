@@ -1,10 +1,12 @@
 import {
   ProviderId,
+  ProviderKeys,
   SeatConfig,
   SeatId,
   Settings,
   Speaker,
   Turn,
+  EMPTY_PROVIDER_KEYS,
   GEMINI_MODEL_OPTIONS,
   GROK_MODEL_OPTIONS,
   CLAUDE_MODEL_OPTIONS,
@@ -18,6 +20,14 @@ import {
   GEMINI_RETIRED_MODELS,
   NVIDIA_RETIRED_MODELS,
 } from './types';
+
+export const ALL_PROVIDER_IDS: ProviderId[] = [
+  'gemini',
+  'grok',
+  'claude',
+  'perplexity',
+  'nvidia',
+];
 
 export const PROVIDER_OPTIONS: {
   id: ProviderId;
@@ -98,12 +108,25 @@ export function normalizeModel(provider: ProviderId, model: string): string {
   return m;
 }
 
+export function emptyProviderKeys(): ProviderKeys {
+  return { ...EMPTY_PROVIDER_KEYS };
+}
+
+export function getProviderKey(
+  settings: Settings,
+  provider: ProviderId
+): string {
+  return (settings.keys?.[provider] ?? '').trim();
+}
+
 export function getSeat(settings: Settings, seat: SeatId): SeatConfig {
   return seat === 'a' ? settings.seatA : settings.seatB;
 }
 
-export function seatReady(seat: SeatConfig): boolean {
-  return Boolean(seat.apiKey?.trim());
+/** Seat can speak if its provider has a saved key in the register */
+export function seatReady(settings: Settings, seat: SeatId): boolean {
+  const cfg = getSeat(settings, seat);
+  return Boolean(getProviderKey(settings, cfg.provider));
 }
 
 export function seatDisplayName(seat: SeatConfig): string {
