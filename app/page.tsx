@@ -921,7 +921,7 @@ export default function Home() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
         <div className="mx-auto max-w-5xl space-y-4">
           {!hasChat ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="flex flex-col items-center py-6 text-center sm:py-10">
               <img
                 src="/icon-512.png"
                 alt="3Way Lite"
@@ -932,13 +932,49 @@ export default function Home() {
               <h2 className="mb-2 text-xl font-semibold text-slate-200">
                 Three-way room
               </h2>
-              <p className="mb-5 max-w-md text-sm text-slate-500">
+              <p className="mb-4 max-w-md text-sm text-slate-500">
                 You and two AI seats share one transcript. Each seat can be
                 Gemini, Grok, Claude, Perplexity, or NVIDIA Build. Attach docs,
                 stream replies, export backups — you control the pace.
               </p>
 
-              <div className="mb-6 w-full max-w-md space-y-3 text-left">
+              <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
+                {!seatAReady && !seatBReady && (
+                  <Button
+                    onClick={() => setSettingsOpen(true)}
+                    className="bg-sky-600 hover:bg-sky-500 text-white"
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Configure seats
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={() => setHelpOpen(true)}
+                  className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800 hover:text-slate-100"
+                >
+                  <CircleHelp className="h-4 w-4 mr-2" />
+                  Getting started
+                </Button>
+                {isSupportEnabled() && (
+                  <Button
+                    variant="outline"
+                    asChild
+                    className="border-amber-500/30 bg-amber-500/5 text-amber-200 hover:bg-amber-500/10 hover:text-amber-100"
+                  >
+                    <a
+                      href={BUY_ME_A_COFFEE_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Coffee className="h-4 w-4 mr-2" />
+                      {SUPPORT_LABEL}
+                    </a>
+                  </Button>
+                )}
+              </div>
+
+              <div className="w-full max-w-md space-y-3 text-left">
                 <div className="rounded-xl border border-slate-800 bg-slate-800/40 p-3">
                   <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                     First-time setup
@@ -979,42 +1015,6 @@ export default function Home() {
                     </p>
                   </div>
                 </div>
-              </div>
-
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                {!seatAReady && !seatBReady && (
-                  <Button
-                    onClick={() => setSettingsOpen(true)}
-                    className="bg-sky-600 hover:bg-sky-500 text-white"
-                  >
-                    <Settings className="h-4 w-4 mr-2" />
-                    Configure seats
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  onClick={() => setHelpOpen(true)}
-                  className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800 hover:text-slate-100"
-                >
-                  <CircleHelp className="h-4 w-4 mr-2" />
-                  Getting started
-                </Button>
-                {isSupportEnabled() && (
-                  <Button
-                    variant="outline"
-                    asChild
-                    className="border-amber-500/30 bg-amber-500/5 text-amber-200 hover:bg-amber-500/10 hover:text-amber-100"
-                  >
-                    <a
-                      href={BUY_ME_A_COFFEE_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Coffee className="h-4 w-4 mr-2" />
-                      {SUPPORT_LABEL}
-                    </a>
-                  </Button>
-                )}
               </div>
             </div>
           ) : (
