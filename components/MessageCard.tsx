@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Turn } from '@/lib/types';
 import { turnDisplayName } from '@/lib/providers';
+import { prepareDisplayText } from '@/lib/formatMessage';
 import { cn } from '@/lib/utils';
 
 interface MessageCardProps {
@@ -45,6 +46,146 @@ function highlightText(text: string, query: string): React.ReactNode {
   }
   if (start < text.length) parts.push(text.slice(start));
   return parts.length ? parts : text;
+}
+
+/** Light markdown + LaTeX cleanup for AI message display */
+function FormattedBody({
+  text,
+  highlightQuery = '',
+  className,
+  streaming,
+}: {
+  text: string;
+  highlightQuery?: string;
+  className?: string;
+  streaming?: boolean;
+}) {
+  const display = prepareDisplayText(text);
+  const q = highlightQuery.trim();
+
+  const renderInline = (chunk: string, keyBase: string): React.ReactNode[] => {
+    // `code`, **bold**, *italic* (simple, non-nested)
+    const nodes: React.ReactNode[] = [];
+    const re = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*)/g;
+    let last = 0;
+    let m: RegExpExecArray | null;
+    let i = 0;
+    while ((m = re.exec(chunk)) !== null) {
+      if (m.index > last) {
+        const plain = chunk.slice(last, m.index);
+        nodes.push(
+          <span key={`${keyBase}-p-${i++}`}>
+            {q ? highlightText(plain, q) : plain}
+          </span>
+        );
+      }
+      const token = m[0];
+      if (token.startsWith('`')) {
+        const inner = token.slice(1, -1);
+        nodes.push(
+          <code
+            key={`${keyBase}-c-${i++}`}
+            className="rounded bg-slate-950/50 px-1 py-0.5 font-mono text-[0.85em] text-sky-200/90"
+          >
+            {q ? highlightText(inner, q) : inner}
+          </code>
+        );
+      } else if (token.startsWith('**')) {
+        const inner = token.slice(2, -2);
+        nodes.push(
+          <strong key={`${keyBase}-b-${i++}`} className="font-semibold text-slate-100">
+            {q ? highlightText(inner, q) : inner}
+          </strong>
+        );
+      } else {
+        const inner = token.slice(1, -1);
+        nodes.push(
+          <em key={`${keyBase}-i-${i++}`} className="italic text-slate-200">
+            {q ? highlightText(inner, q) : inner}
+          </em>
+        );
+      }
+      last = m.index + token.length;
+    }
+    if (last < chunk.length) {
+      const plain = chunk.slice(last);
+      nodes.push(
+        <span key={`${keyBase}-p-end`}>
+          {q ? highlightText(plain, q) : plain}
+        </span>
+      );
+    }
+    return nodes;
+  };
+
+  const lines = display.split('\n');
+  const blocks: React.ReactNode[] = [];
+  let listBuf: string[] = [];
+  let bi = 0;
+
+  const flushList = () => {
+    if (!listBuf.length) return;
+    blocks.push(
+      <ul
+        key={`ul-${bi++}`}
+        className="my-1.5 list-disc space-y-0.5 pl-5 text-sm"
+      >
+        {listBuf.map((item, li) => (
+          <li key={li} className="leading-relaxed">
+            {renderInline(item, `li-${bi}-${li}`)}
+          </li>
+        ))}
+      </ul>
+    );
+    listBuf = [];
+  };
+
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    const bullet = line.match(/^\s*[-*•]\s+(.+)$/);
+    const numbered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+    if (bullet || numbered) {
+      listBuf.push((bullet || numbered)![1]);
+      continue;
+    }
+    flushList();
+    if (!line.trim()) {
+      blocks.push(<div key={`br-${bi++}`} className="h-2" />);
+      continue;
+    }
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      blocks.push(
+        <p
+          key={`h-${bi++}`}
+          className="mt-2 mb-1 text-sm font-semibold text-slate-100"
+        >
+          {renderInline(heading[2], `h-${bi}`)}
+        </p>
+      );
+      continue;
+    }
+    blocks.push(
+      <p key={`p-${bi++}`} className="leading-relaxed">
+        {renderInline(line, `p-${bi}`)}
+      </p>
+    );
+  }
+  flushList();
+
+  return (
+    <div
+      className={cn(
+        'break-words text-sm text-slate-200 space-y-0.5',
+        className
+      )}
+    >
+      {blocks}
+      {streaming ? (
+        <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-slate-400 align-middle" />
+      ) : null}
+    </div>
+  );
 }
 
 function CopyButton({
@@ -163,7 +304,7 @@ export function MessageCard({
   isActiveMatch = false,
 }: MessageCardProps) {
   const q = highlightQuery.trim();
-  const body = (text: string) => (q ? highlightText(text, q) : text);
+  const plainBody = (text: string) => (q ? highlightText(text, q) : text);
 
   if (turn.kind === 'document') {
     return (
@@ -190,7 +331,7 @@ export function MessageCard({
           <CopyButton text={turn.content} />
         </div>
         <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950/40 p-3 text-xs leading-relaxed text-slate-300">
-          {body(turn.content)}
+          {plainBody(turn.content)}
         </pre>
       </div>
     );
@@ -211,7 +352,7 @@ export function MessageCard({
             <User className="h-3.5 w-3.5 text-sky-200" />
           </div>
           <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-            {body(turn.content)}
+            {plainBody(turn.content)}
           </p>
         </div>
       </div>
@@ -269,9 +410,11 @@ export function MessageCard({
       ) : turn.status === 'error' ? (
         <div className="space-y-3">
           {turn.content ? (
-            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-300 opacity-70">
-              {body(turn.content)}
-            </p>
+            <FormattedBody
+              text={turn.content}
+              highlightQuery={highlightQuery}
+              className="opacity-70"
+            />
           ) : null}
           <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
             <p className="text-sm text-red-300">
@@ -290,12 +433,11 @@ export function MessageCard({
           )}
         </div>
       ) : (
-        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-200">
-          {body(turn.content)}
-          {isStreaming && turn.content ? (
-            <span className="ml-0.5 inline-block h-3 w-1.5 animate-pulse bg-slate-400 align-middle" />
-          ) : null}
-        </p>
+        <FormattedBody
+          text={turn.content}
+          highlightQuery={highlightQuery}
+          streaming={isStreaming && Boolean(turn.content)}
+        />
       )}
     </div>
   );

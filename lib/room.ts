@@ -177,6 +177,10 @@ export function systemPromptForSeat(
     `Documents appear as "[Attached document: filename]" with extracted text.`,
     `Speak as yourself. Be clear and direct. You may agree, disagree, or build on ${otherName}'s points when relevant.`,
     `Do not pretend to be the user or ${otherName}. Do not narrate the whole room unless asked.`,
+    // Readability: this UI shows plain text (light markdown only). Raw LaTeX is hard to read.
+    `Formatting: write for a plain chat card. Prefer everyday prose and normal units (e.g. "q_traffic ≈ 10 to 20 kPa").`,
+    `Do not use LaTeX or math mode (no $...$, \\text{}, \\approx, _{...}, etc.). Avoid dense markdown tables unless essential.`,
+    `Simple markdown is OK: short **bold** phrases, bullet lists, and \`code\` for symbols or identifiers.`,
   ].join(' ');
 }
 
