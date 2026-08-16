@@ -140,7 +140,9 @@ export default function Home() {
     .map((t) => t.content.length)
     .join(',');
 
+  // Keep the transcript pinned to the latest message while chatting — not on the empty welcome screen
   useEffect(() => {
+    if (room.turns.length === 0) return;
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [room.turns.length, isBusy, streamLens]);
 
