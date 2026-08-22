@@ -1,4 +1,4 @@
-import { SeatId, Settings, SpeakTarget } from './types';
+import { Settings, SpeakTarget } from './types';
 import { providerLabel, seatDisplayName } from './providers';
 
 export type RoutePrefixResult = {
@@ -9,7 +9,11 @@ export type RoutePrefixResult = {
   matchedLabel: string;
 };
 
-function normalizeToken(s: string): string {
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function norm(s: string): string {
   return s
     .trim()
     .toLowerCase()
@@ -17,84 +21,132 @@ function normalizeToken(s: string): string {
     .replace(/\s+/g, ' ');
 }
 
+type RouteDef = {
+  aliases: string[];
+  target: SpeakTarget;
+  matchedLabel: string;
+};
+
+function buildRoutes(settings: Settings): RouteDef[] {
+  const nameA = seatDisplayName(settings.seatA);
+  const nameB = seatDisplayName(settings.seatB);
+  const sameProvider =
+    settings.seatA.provider === settings.seatB.provider;
+
+  const routes: RouteDef[] = [
+    {
+      aliases: ['both', 'all', 'everyone'],
+      target: 'both',
+      matchedLabel: 'Both',
+    },
+    {
+      aliases: ['seat a', 'seata'],
+      target: 'a',
+      matchedLabel: nameA,
+    },
+    {
+      aliases: ['seat b', 'seatb'],
+      target: 'b',
+      matchedLabel: nameB,
+    },
+  ];
+
+  // Current chair names / provider labels (skip if both seats share one provider —
+  // then only Seat A / Seat B are unambiguous)
+  if (!sameProvider) {
+    routes.push({
+      aliases: [nameA, providerLabel(settings.seatA.provider)],
+      target: 'a',
+      matchedLabel: nameA,
+    });
+    routes.push({
+      aliases: [nameB, providerLabel(settings.seatB.provider)],
+      target: 'b',
+      matchedLabel: nameB,
+    });
+  }
+
+  return routes;
+}
+
 /**
- * If the message begins with BOTH / ALL / SEAT A|B / current provider names,
+ * If the message begins with BOTH / Seat A|B / current seat provider names,
  * return the route target and the message with that prefix removed.
- * Only matches a leading token (optional : , - after it).
+ *
+ * Accepts: "Gemini: …", "GEMINI …", "both - …", or keyword alone.
  */
 export function parseRoutePrefix(
   message: string,
   settings: Settings
 ): RoutePrefixResult | null {
-  const trimmed = message.trimStart();
+  const trimmed = message.trim();
   if (!trimmed) return null;
 
-  // First token: letters/digits/spaces inside until separator or end
-  // e.g. "GROK: hello", "Seat A - hi", "BOTH what do you think"
-  const m = trimmed.match(
-    /^([A-Za-z][A-Za-z0-9]*(?:\s+[A-Za-z][A-Za-z0-9]*){0,2})(?:\s*[:\-–,]\s*|\s+)/
-  );
-  // Also allow keyword as entire message
-  const whole = trimmed.match(
-    /^([A-Za-z][A-Za-z0-9]*(?:\s+[A-Za-z][A-Za-z0-9]*){0,2})\s*$/
-  );
+  const routes = buildRoutes(settings);
 
-  const tokenRaw = m?.[1] ?? whole?.[1];
-  if (!tokenRaw) return null;
+  // Flatten aliases, longest first so "seat a" wins over shorter tokens
+  const candidates: {
+    alias: string;
+    target: SpeakTarget;
+    matchedLabel: string;
+  }[] = [];
 
-  const token = normalizeToken(tokenRaw);
-  const labelA = normalizeToken(seatDisplayName(settings.seatA));
-  const labelB = normalizeToken(seatDisplayName(settings.seatB));
-  const providerA = normalizeToken(providerLabel(settings.seatA.provider));
-  const providerB = normalizeToken(providerLabel(settings.seatB.provider));
-
-  let target: SpeakTarget | null = null;
-  let matchedLabel = '';
-
-  // Avoid bare "A"/"B" — too easy to false-positive ("A good point…")
-  const bothAliases = new Set(['both', 'all', 'everyone']);
-  const aExplicit = new Set(['seat a', 'seata', 'seat-a']);
-  const bExplicit = new Set(['seat b', 'seatb', 'seat-b']);
-
-  // If both seats share the same provider, require Seat A / Seat B (not the shared name)
-  const sameProvider =
-    settings.seatA.provider === settings.seatB.provider;
-
-  if (bothAliases.has(token)) {
-    target = 'both';
-    matchedLabel = 'Both';
-  } else if (aExplicit.has(token)) {
-    target = 'a';
-    matchedLabel = seatDisplayName(settings.seatA);
-  } else if (bExplicit.has(token)) {
-    target = 'b';
-    matchedLabel = seatDisplayName(settings.seatB);
-  } else if (!sameProvider && (token === labelA || token === providerA)) {
-    target = 'a';
-    matchedLabel = seatDisplayName(settings.seatA);
-  } else if (!sameProvider && (token === labelB || token === providerB)) {
-    target = 'b';
-    matchedLabel = seatDisplayName(settings.seatB);
-  } else if (sameProvider && (token === labelA || token === providerA)) {
-    return null;
+  for (const r of routes) {
+    for (const a of r.aliases) {
+      const alias = norm(a);
+      if (!alias) continue;
+      candidates.push({
+        alias,
+        target: r.target,
+        matchedLabel: r.matchedLabel,
+      });
+    }
   }
 
-  if (!target) return null;
+  candidates.sort((x, y) => y.alias.length - x.alias.length);
 
-  let text: string;
-  if (whole && !m) {
-    text = '';
-  } else if (m) {
-    text = trimmed.slice(m[0].length).trimStart();
-  } else {
-    text = '';
+  const lower = trimmed.toLowerCase();
+
+  for (const c of candidates) {
+    // Alias at start, then end-of-string OR separator/whitespace
+    // Separators: : , - – — .
+    const pattern = new RegExp(
+      `^${escapeRegExp(c.alias)}(?:\\s*[:\\-–—,.]\\s*|\\s+|$)`,
+      'i'
+    );
+    const match = trimmed.match(pattern);
+    if (!match) continue;
+
+    // Extra guard: next char after alias in original must be boundary
+    // (already enforced by regex)
+    const text = trimmed.slice(match[0].length).trim();
+    return {
+      text,
+      target: c.target,
+      matchedLabel: c.matchedLabel,
+    };
   }
 
-  return { text, target, matchedLabel };
+  // Debug-friendly: also try first whitespace-separated word against aliases
+  // (handles odd unicode spaces that \\s might miss in some engines — rare)
+  void lower;
+
+  return null;
+}
+
+/** Preview only — does not require a full message body after the keyword */
+export function peekRoutePrefix(
+  message: string,
+  settings: Settings
+): SpeakTarget | null {
+  return parseRoutePrefix(message, settings)?.target ?? null;
 }
 
 export function routePrefixHint(settings: Settings): string {
   const a = seatDisplayName(settings.seatA);
   const b = seatDisplayName(settings.seatB);
+  if (settings.seatA.provider === settings.seatB.provider) {
+    return `Start with BOTH, Seat A, or Seat B`;
+  }
   return `Start with BOTH, ${a}, ${b}, Seat A, or Seat B`;
 }

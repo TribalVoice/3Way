@@ -76,7 +76,11 @@ import {
   parseRoomImport,
 } from '@/lib/exportRoom';
 import { streamProvider } from '@/lib/streamChat';
-import { parseRoutePrefix, routePrefixHint } from '@/lib/routePrefix';
+import {
+  parseRoutePrefix,
+  peekRoutePrefix,
+  routePrefixHint,
+} from '@/lib/routePrefix';
 import { cn } from '@/lib/utils';
 
 export default function Home() {
@@ -1153,7 +1157,15 @@ export default function Home() {
             <Textarea
               ref={inputRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setInput(v);
+                // Live-update Next reply chips while typing a route keyword
+                if (settings?.routeByPrefix) {
+                  const peeked = peekRoutePrefix(v, settings);
+                  if (peeked) setSpeakTarget(peeked);
+                }
+              }}
               onKeyDown={handleKeyDown}
               placeholder={
                 settings?.routeByPrefix
