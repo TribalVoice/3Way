@@ -251,6 +251,7 @@ export function SettingsModal({
   const [keys, setKeys] = useState<ProviderKeys>(emptyProviderKeys());
   const [seatA, setSeatA] = useState<SeatConfig>(DEFAULT_SETTINGS.seatA);
   const [seatB, setSeatB] = useState<SeatConfig>(DEFAULT_SETTINGS.seatB);
+  const [routeByPrefix, setRouteByPrefix] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -258,6 +259,7 @@ export function SettingsModal({
       setKeys({ ...EMPTY_PROVIDER_KEYS, ...settings.keys });
       setSeatA(settings.seatA);
       setSeatB(settings.seatB);
+      setRouteByPrefix(Boolean(settings.routeByPrefix));
       setSaved(false);
     }
   }, [open, settings]);
@@ -279,6 +281,7 @@ export function SettingsModal({
         provider: seatB.provider,
         model: seatB.model.trim() || defaultModelFor(seatB.provider),
       },
+      routeByPrefix,
     });
     setSaved(true);
     setTimeout(() => onOpenChange(false), 600);
@@ -314,6 +317,26 @@ export function SettingsModal({
             onChange={setSeatB}
             keyReady={Boolean(keys[seatB.provider]?.trim())}
           />
+          <Separator className="bg-slate-700" />
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-700 bg-slate-800/40 p-3">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 rounded border-slate-600 bg-slate-900 text-sky-600 focus:ring-sky-500"
+              checked={routeByPrefix}
+              onChange={(e) => setRouteByPrefix(e.target.checked)}
+            />
+            <span className="text-left">
+              <span className="block text-sm font-medium text-slate-200">
+                Route by first word
+              </span>
+              <span className="mt-0.5 block text-[11px] text-slate-500">
+                If a message starts with BOTH, {providerLabel(seatA.provider)},{' '}
+                {providerLabel(seatB.provider)}, Seat A, or Seat B, auto-select
+                that Next reply target and remove the keyword before sending.
+                Useful for fast keyboard-only turns.
+              </span>
+            </span>
+          </label>
         </div>
 
         <DialogFooter>

@@ -76,6 +76,7 @@ import {
   parseRoomImport,
 } from '@/lib/exportRoom';
 import { streamProvider } from '@/lib/streamChat';
+import { parseRoutePrefix, routePrefixHint } from '@/lib/routePrefix';
 import { cn } from '@/lib/utils';
 
 export default function Home() {
@@ -260,13 +261,30 @@ export default function Home() {
       return;
     }
 
-    const seats = resolveSeats(speakTarget, currentSettings);
+    let target = speakTarget;
+    let userContent = input.trim();
+
+    if (currentSettings.routeByPrefix) {
+      const routed = parseRoutePrefix(userContent, currentSettings);
+      if (routed) {
+        target = routed.target;
+        userContent = routed.text.trim();
+        setSpeakTarget(target);
+        showToast(`Routed to ${routed.matchedLabel}`);
+        if (!userContent) {
+          // Keyword only — just change Next reply, don't send an empty turn
+          setInput('');
+          return;
+        }
+      }
+    }
+
+    const seats = resolveSeats(target, currentSettings);
     if (seats.length === 0) {
       setSettingsOpen(true);
       return;
     }
 
-    const userContent = input.trim();
     setInput('');
     setIsBusy(true);
 
@@ -1081,6 +1099,30 @@ export default function Home() {
                 </button>
               </>
             )}
+
+            {settings && (
+              <label
+                className="ml-auto flex cursor-pointer items-center gap-1.5 text-[10px] text-slate-500 hover:text-slate-300"
+                title={routePrefixHint(settings)}
+              >
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900 text-sky-600 focus:ring-sky-500"
+                  checked={Boolean(settings.routeByPrefix)}
+                  disabled={pending}
+                  onChange={(e) => {
+                    const next = {
+                      ...settings,
+                      routeByPrefix: e.target.checked,
+                    };
+                    setSettings(next);
+                    saveSettings(next);
+                  }}
+                />
+                <span className="hidden sm:inline">Route by first word</span>
+                <span className="sm:hidden">Route</span>
+              </label>
+            )}
           </div>
 
           <div className="relative flex items-end gap-2 rounded-2xl border border-slate-700 bg-slate-800/50 p-2 focus-within:border-slate-600 transition-colors">
@@ -1114,11 +1156,13 @@ export default function Home() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
-                speakTarget === 'both'
-                  ? 'Message the room — both seats stream…'
-                  : speakTarget === 'a'
-                    ? `Message the room — ${labelA} streams…`
-                    : `Message the room — ${labelB} streams…`
+                settings?.routeByPrefix
+                  ? `${routePrefixHint(settings)} — then your message…`
+                  : speakTarget === 'both'
+                    ? 'Message the room — both seats stream…'
+                    : speakTarget === 'a'
+                      ? `Message the room — ${labelA} streams…`
+                      : `Message the room — ${labelB} streams…`
               }
               disabled={pending}
               className="min-h-[44px] max-h-[160px] flex-1 resize-none border-0 bg-transparent px-2 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus-visible:ring-0 focus-visible:ring-offset-0"

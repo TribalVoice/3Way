@@ -50,6 +50,11 @@ export interface Settings {
   keys: ProviderKeys;
   seatA: SeatConfig;
   seatB: SeatConfig;
+  /**
+   * When true, messages starting with BOTH / seat provider name / "Seat A|B"
+   * auto-select Next reply and strip that prefix before send.
+   */
+  routeByPrefix?: boolean;
 }
 
 export const EMPTY_PROVIDER_KEYS: ProviderKeys = {
@@ -89,6 +94,7 @@ export const DEFAULT_SETTINGS: Settings = {
     provider: 'grok',
     model: DEFAULT_GROK_MODEL,
   },
+  routeByPrefix: false,
 };
 
 /** Max characters of extracted text kept per file */

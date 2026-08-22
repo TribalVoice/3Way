@@ -127,7 +127,12 @@ export function loadSettings(): Settings {
       };
     }
 
-    const settings: Settings = { keys, seatA, seatB };
+    const settings: Settings = {
+      keys,
+      seatA,
+      seatB,
+      routeByPrefix: Boolean(parsed.routeByPrefix),
+    };
     saveSettings(settings);
     return settings;
   } catch {
@@ -159,6 +164,7 @@ export function saveSettings(settings: Settings): void {
           settings.seatB.model.trim() ||
           defaultModelFor(settings.seatB.provider),
       },
+      routeByPrefix: Boolean(settings.routeByPrefix),
     };
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(clean));
   } catch {

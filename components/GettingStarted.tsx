@@ -224,6 +224,12 @@ export function GettingStarted({
               </li>
               <li>Invite asks models to speak again without retyping.</li>
               <li>
+                Optional <strong className="text-slate-300">Route by first word</strong>{' '}
+                (Settings or next to Next reply): start with BOTH, a seat&apos;s
+                provider name, or Seat A / Seat B to pick who answers without
+                clicking.
+              </li>
+              <li>
                 <Download className="mr-1 inline h-3.5 w-3.5" />
                 <strong className="text-slate-300">Export JSON</strong> (or
                 Markdown) saves a file via your browser&apos;s download — usually
