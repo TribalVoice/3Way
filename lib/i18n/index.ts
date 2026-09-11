@@ -40,9 +40,8 @@ export function translate(
   params?: Record<string, string | number>
 ): string {
   const loc = isLocale(locale) ? locale : DEFAULT_LOCALE;
-  let raw =
-    getByPath(catalogs[loc], key) ?? getByPath(catalogs.en, key) ?? key;
-  if (typeof raw !== 'string') return key;
+  const found = getByPath(catalogs[loc], key) ?? getByPath(catalogs.en, key);
+  let raw = typeof found === 'string' ? found : key;
   if (params) {
     for (const [k, v] of Object.entries(params)) {
       raw = raw.split(`{${k}}`).join(String(v));
