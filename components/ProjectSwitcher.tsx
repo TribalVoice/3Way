@@ -12,6 +12,7 @@ import {
 import { ProjectIndex, ProjectMeta } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { cn } from '@/lib/utils';
 
 interface ProjectSwitcherProps {
@@ -31,6 +32,7 @@ export function ProjectSwitcher({
   onRename,
   onDelete,
 }: ProjectSwitcherProps) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -59,10 +61,12 @@ export function ProjectSwitcher({
         className={cn(
           'flex max-w-[160px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/60 px-2.5 py-1.5 text-left text-xs font-medium text-slate-200 transition-colors hover:bg-slate-800 disabled:opacity-40 sm:max-w-[220px]'
         )}
-        title={active?.title || 'Project'}
+        title={active?.title || t('project.project')}
       >
         <FolderOpen className="h-3.5 w-3.5 shrink-0 text-sky-400" />
-        <span className="truncate">{active?.title || 'Project'}</span>
+        <span className="truncate">
+          {active?.title || t('project.project')}
+        </span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500" />
       </button>
 
@@ -123,14 +127,14 @@ export function ProjectSwitcher({
                         {p.title}
                         {p.id === index.activeId && (
                           <span className="ml-1 text-[10px] text-sky-400">
-                            · active
+                            · {t('project.active')}
                           </span>
                         )}
                       </button>
                       <button
                         type="button"
                         className="rounded p-1 text-slate-500 opacity-70 hover:bg-slate-700 hover:text-slate-200"
-                        title="Rename"
+                        title={t('project.rename')}
                         onClick={() => startRename(p)}
                       >
                         <Pencil className="h-3 w-3" />
@@ -138,13 +142,13 @@ export function ProjectSwitcher({
                       <button
                         type="button"
                         className="rounded p-1 text-slate-500 opacity-70 hover:bg-slate-700 hover:text-red-400"
-                        title="Delete project"
+                        title={t('project.delete')}
                         onClick={() => {
                           if (
                             window.confirm(
                               index.projects.length <= 1
-                                ? 'Clear this project’s transcript?'
-                                : `Delete project “${p.title}”?`
+                                ? t('confirm.clearOnlyProject')
+                                : t('confirm.deleteProject', { title: p.title })
                             )
                           ) {
                             onDelete(p.id);
@@ -169,7 +173,7 @@ export function ProjectSwitcher({
               className="mt-1 flex w-full items-center gap-2 rounded-lg border border-dashed border-slate-700 px-2.5 py-2 text-xs font-medium text-sky-400 hover:bg-slate-800"
             >
               <Plus className="h-3.5 w-3.5" />
-              New project
+              {t('project.newProject')}
             </button>
           </div>
         </>

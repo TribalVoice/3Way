@@ -14,6 +14,7 @@ User-paced three-way chat: **you** and **two AI seats** share one room transcrip
 - **Export / import** active project as JSON; export Markdown for reading
 - BYOK: API keys stored in your browser only
 - In-app **Getting started** help + **Ko-fi** support link
+- **Languages:** English, Português (Brasil), Español (Settings)
 - Windows **launcher** + desktop shortcut scripts
 
 ## Setup (first time)

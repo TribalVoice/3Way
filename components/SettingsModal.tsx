@@ -38,6 +38,8 @@ import {
   providerLabel,
   emptyProviderKeys,
 } from '@/lib/providers';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
+import { LOCALES, type Locale } from '@/lib/i18n';
 
 interface SettingsModalProps {
   open: boolean;
@@ -53,6 +55,7 @@ function KeyRegister({
   keys: ProviderKeys;
   onChange: (keys: ProviderKeys) => void;
 }) {
+  const { t } = useLanguage();
   const [show, setShow] = useState<Partial<Record<ProviderId, boolean>>>({});
 
   return (
@@ -63,10 +66,10 @@ function KeyRegister({
         </div>
         <div>
           <span className="text-sm font-semibold text-slate-200">
-            API key register
+            {t('settings.keyRegister')}
           </span>
           <p className="text-[10px] text-slate-500">
-            Save each provider once. Seats reuse these when you switch models.
+            {t('settings.keyRegisterHint')}
           </p>
         </div>
       </div>
@@ -84,7 +87,7 @@ function KeyRegister({
                     : 'text-[10px] text-slate-600'
                 }
               >
-                {hasKey ? 'Saved' : 'Not set'}
+                {hasKey ? t('settings.saved') : t('settings.notSet')}
               </span>
             </div>
             <div className="relative">
@@ -133,6 +136,7 @@ function SeatEditor({
   onChange: (seat: SeatConfig) => void;
   keyReady: boolean;
 }) {
+  const { t } = useLanguage();
   const options = modelOptionsFor(seat.provider);
   const [custom, setCustom] = useState(!options.includes(seat.model));
   const meta = PROVIDER_OPTIONS.find((p) => p.id === seat.provider);
@@ -158,12 +162,12 @@ function SeatEditor({
               : 'ml-auto text-[10px] text-amber-500/90'
           }
         >
-          {keyReady ? 'Key ready' : 'Add key above'}
+          {keyReady ? t('settings.keyReady') : t('settings.addKeyAbove')}
         </span>
       </div>
 
       <div className="space-y-1.5">
-        <Label className="text-xs text-slate-400">Provider</Label>
+        <Label className="text-xs text-slate-400">{t('settings.provider')}</Label>
         <div className="relative">
           <select
             value={seat.provider}
@@ -188,7 +192,7 @@ function SeatEditor({
       </div>
 
       <div className="space-y-1.5">
-        <Label className="text-xs text-slate-400">Model</Label>
+        <Label className="text-xs text-slate-400">{t('settings.model')}</Label>
         {custom ? (
           <Input
             type="text"
@@ -232,7 +236,7 @@ function SeatEditor({
           }}
           className="text-[10px] text-sky-400 hover:text-sky-300"
         >
-          {custom ? 'Use dropdown' : 'Enter custom model name'}
+          {custom ? t('settings.useDropdown') : t('settings.customModel')}
         </button>
         {meta?.note && seat.provider === 'nvidia' && (
           <p className="text-[10px] text-slate-500">{meta.note}</p>
@@ -251,7 +255,9 @@ export function SettingsModal({
   const [keys, setKeys] = useState<ProviderKeys>(emptyProviderKeys());
   const [seatA, setSeatA] = useState<SeatConfig>(DEFAULT_SETTINGS.seatA);
   const [seatB, setSeatB] = useState<SeatConfig>(DEFAULT_SETTINGS.seatB);
+  const { t } = useLanguage();
   const [routeByPrefix, setRouteByPrefix] = useState(false);
+  const [locale, setLocale] = useState<Locale>('en');
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -260,6 +266,11 @@ export function SettingsModal({
       setSeatA(settings.seatA);
       setSeatB(settings.seatB);
       setRouteByPrefix(Boolean(settings.routeByPrefix));
+      setLocale(
+        settings.locale === 'pt-BR' || settings.locale === 'es'
+          ? settings.locale
+          : 'en'
+      );
       setSaved(false);
     }
   }, [open, settings]);
@@ -282,6 +293,7 @@ export function SettingsModal({
         model: seatB.model.trim() || defaultModelFor(seatB.provider),
       },
       routeByPrefix,
+      locale,
     });
     setSaved(true);
     setTimeout(() => onOpenChange(false), 600);
@@ -293,26 +305,49 @@ export function SettingsModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-slate-100">
             <KeyRound className="h-5 w-5 text-sky-400" />
-            Keys & seats
+            {t('settings.title')}
           </DialogTitle>
           <DialogDescription className="text-slate-400">
-            Register API keys once per provider, then assign each seat a
-            provider and model. Keys stay in this browser only.
+            {t('settings.description')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-slate-400">
+              {t('settings.language')}
+            </Label>
+            <div className="relative">
+              <select
+                value={locale}
+                onChange={(e) => setLocale(e.target.value as Locale)}
+                className="h-10 w-full appearance-none rounded-md border border-slate-700 bg-slate-800 px-3 pr-8 text-sm text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+              >
+                {LOCALES.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.nativeLabel}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            </div>
+            <p className="text-[10px] text-slate-500">
+              {t('settings.languageHint')}
+            </p>
+          </div>
+
+          <Separator className="bg-slate-700" />
           <KeyRegister keys={keys} onChange={setKeys} />
           <Separator className="bg-slate-700" />
           <SeatEditor
-            title="Seat A"
+            title={t('settings.seatA')}
             seat={seatA}
             onChange={setSeatA}
             keyReady={Boolean(keys[seatA.provider]?.trim())}
           />
           <Separator className="bg-slate-700" />
           <SeatEditor
-            title="Seat B"
+            title={t('settings.seatB')}
             seat={seatB}
             onChange={setSeatB}
             keyReady={Boolean(keys[seatB.provider]?.trim())}
@@ -327,13 +362,13 @@ export function SettingsModal({
             />
             <span className="text-left">
               <span className="block text-sm font-medium text-slate-200">
-                Route by first word
+                {t('settings.routeByPrefix')}
               </span>
               <span className="mt-0.5 block text-[11px] text-slate-500">
-                If a message starts with BOTH, {providerLabel(seatA.provider)},{' '}
-                {providerLabel(seatB.provider)}, Seat A, or Seat B, auto-select
-                that Next reply target and remove the keyword before sending.
-                Useful for fast keyboard-only turns.
+                {t('settings.routeByPrefixHint', {
+                  a: providerLabel(seatA.provider),
+                  b: providerLabel(seatB.provider),
+                })}
               </span>
             </span>
           </label>
@@ -347,12 +382,12 @@ export function SettingsModal({
             {saved ? (
               <>
                 <Check className="h-4 w-4 mr-1" />
-                Saved
+                {t('settings.savedBtn')}
               </>
             ) : (
               <>
                 <Save className="h-4 w-4 mr-1" />
-                Save Settings
+                {t('settings.save')}
               </>
             )}
           </Button>

@@ -7,6 +7,7 @@ import {
   EMPTY_PROVIDER_KEYS,
 } from './types';
 import { defaultModelFor, normalizeModel, emptyProviderKeys } from './providers';
+import { DEFAULT_LOCALE, isLocale } from './i18n/locales';
 
 const SETTINGS_KEY = '3way-settings';
 const LEGACY_TREE_KEY = 'branchchat-tree';
@@ -132,6 +133,7 @@ export function loadSettings(): Settings {
       seatA,
       seatB,
       routeByPrefix: Boolean(parsed.routeByPrefix),
+      locale: isLocale(parsed.locale) ? parsed.locale : DEFAULT_LOCALE,
     };
     saveSettings(settings);
     return settings;
@@ -165,6 +167,7 @@ export function saveSettings(settings: Settings): void {
           defaultModelFor(settings.seatB.provider),
       },
       routeByPrefix: Boolean(settings.routeByPrefix),
+      locale: isLocale(settings.locale) ? settings.locale : DEFAULT_LOCALE,
     };
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(clean));
   } catch {

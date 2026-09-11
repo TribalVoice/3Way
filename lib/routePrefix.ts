@@ -35,17 +35,17 @@ function buildRoutes(settings: Settings): RouteDef[] {
 
   const routes: RouteDef[] = [
     {
-      aliases: ['both', 'all', 'everyone'],
+      aliases: ['both', 'all', 'everyone', 'ambos', 'todas', 'todos'],
       target: 'both',
       matchedLabel: 'Both',
     },
     {
-      aliases: ['seat a', 'seata'],
+      aliases: ['seat a', 'seata', 'assento a', 'asiento a'],
       target: 'a',
       matchedLabel: nameA,
     },
     {
-      aliases: ['seat b', 'seatb'],
+      aliases: ['seat b', 'seatb', 'assento b', 'asiento b'],
       target: 'b',
       matchedLabel: nameB,
     },

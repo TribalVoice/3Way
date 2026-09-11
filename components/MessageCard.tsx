@@ -13,6 +13,7 @@ import {
 import { Turn } from '@/lib/types';
 import { turnDisplayName } from '@/lib/providers';
 import { prepareDisplayText } from '@/lib/formatMessage';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { cn } from '@/lib/utils';
 
 interface MessageCardProps {
@@ -192,10 +193,14 @@ function CopyButton({
   text,
   className,
   light,
+  labelCopy,
+  labelCopied,
 }: {
   text: string;
   className?: string;
   light?: boolean;
+  labelCopy: string;
+  labelCopied: string;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -236,15 +241,17 @@ function CopyButton({
           : 'text-slate-400 hover:bg-slate-700/80 hover:text-slate-100',
         className
       )}
-      title={copied ? 'Copied' : 'Copy text'}
-      aria-label={copied ? 'Copied' : 'Copy text'}
+      title={copied ? labelCopied : labelCopy}
+      aria-label={copied ? labelCopied : labelCopy}
     >
       {copied ? (
         <Check className="h-3.5 w-3.5 text-emerald-400" />
       ) : (
         <Copy className="h-3.5 w-3.5" />
       )}
-      <span className="hidden sm:inline">{copied ? 'Copied' : 'Copy'}</span>
+      <span className="hidden sm:inline">
+        {copied ? labelCopied : labelCopy}
+      </span>
     </button>
   );
 }
@@ -303,8 +310,13 @@ export function MessageCard({
   highlightQuery = '',
   isActiveMatch = false,
 }: MessageCardProps) {
+  const { t } = useLanguage();
   const q = highlightQuery.trim();
   const plainBody = (text: string) => (q ? highlightText(text, q) : text);
+  const copyLabels = {
+    labelCopy: t('message.copy'),
+    labelCopied: t('message.copied'),
+  };
 
   if (turn.kind === 'document') {
     return (
@@ -321,14 +333,14 @@ export function MessageCard({
           </div>
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="text-sm font-semibold text-amber-300">
-              Document
+              {t('message.document')}
             </span>
             <span className="truncate text-[10px] text-slate-500">
               {turn.fileName || 'file'}
-              {turn.truncated ? ' · truncated' : ''}
+              {turn.truncated ? ` · ${t('message.truncated')}` : ''}
             </span>
           </div>
-          <CopyButton text={turn.content} />
+          <CopyButton text={turn.content} {...copyLabels} />
         </div>
         <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950/40 p-3 text-xs leading-relaxed text-slate-300">
           {plainBody(turn.content)}
@@ -347,8 +359,10 @@ export function MessageCard({
           )}
         >
           <div className="mb-1 flex items-center justify-end gap-1.5">
-            <CopyButton text={turn.content} light />
-            <span className="text-xs font-medium text-sky-200">You</span>
+            <CopyButton text={turn.content} light {...copyLabels} />
+            <span className="text-xs font-medium text-sky-200">
+              {t('message.you')}
+            </span>
             <User className="h-3.5 w-3.5 text-sky-200" />
           </div>
           <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
@@ -398,14 +412,14 @@ export function MessageCard({
           )}
         </div>
         {!isStreaming && turn.content ? (
-          <CopyButton text={copyText} />
+          <CopyButton text={copyText} {...copyLabels} />
         ) : null}
       </div>
 
       {turn.status === 'pending' && !turn.content ? (
         <div className="flex items-center gap-2 py-4 text-slate-400">
           <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="text-sm">Starting…</span>
+          <span className="text-sm">{t('message.starting')}</span>
         </div>
       ) : turn.status === 'error' ? (
         <div className="space-y-3">
@@ -418,7 +432,7 @@ export function MessageCard({
           ) : null}
           <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3">
             <p className="text-sm text-red-300">
-              {turn.error || 'Request failed.'}
+              {turn.error || t('message.requestFailed')}
             </p>
           </div>
           {onRetry && (
@@ -428,7 +442,7 @@ export function MessageCard({
               className="flex items-center gap-1.5 rounded-md border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-700"
             >
               <RotateCcw className="h-3.5 w-3.5" />
-              Retry
+              {t('message.retry')}
             </button>
           )}
         </div>

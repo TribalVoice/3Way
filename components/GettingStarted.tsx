@@ -24,6 +24,7 @@ import {
   SUPPORT_LABEL,
   isSupportEnabled,
 } from '@/lib/support';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface GettingStartedProps {
   open: boolean;
@@ -36,15 +37,14 @@ export function GettingStarted({
   onOpenChange,
   onOpenSettings,
 }: GettingStartedProps) {
+  const { t } = useLanguage();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto border-slate-700 bg-slate-900 text-slate-100">
         <DialogHeader>
-          <DialogTitle className="text-slate-100">Getting started</DialogTitle>
+          <DialogTitle className="text-slate-100">{t('help.title')}</DialogTitle>
           <DialogDescription className="text-slate-400">
-            3Way Lite is a local (or hosted) web app with two AI seats and
-            multiple projects. Seats can be Gemini, Grok, Claude, Perplexity, or
-            NVIDIA Build — you bring your own API keys.
+            {t('help.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -52,11 +52,11 @@ export function GettingStarted({
           <section className="space-y-2">
             <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
               <KeyRound className="h-3.5 w-3.5" />
-              1. API keys
+              {t('help.apiKeys')}
             </h3>
             <ol className="list-decimal space-y-1 pl-5 text-slate-400">
               <li>
-                Open{' '}
+                {t('help.openSettingsLead')}{' '}
                 <button
                   type="button"
                   className="text-sky-400 hover:underline"
@@ -65,11 +65,9 @@ export function GettingStarted({
                     onOpenSettings?.();
                   }}
                 >
-                  Settings
+                  {t('help.openSettings')}
                 </button>{' '}
-                and open the <strong className="text-slate-300">API key register</strong>{' '}
-                (save each provider once), then assign Seat A and Seat B
-                providers and models.
+                {t('help.openSettingsMid')}
               </li>
               <li>
                 Gemini:{' '}

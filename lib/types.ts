@@ -55,6 +55,8 @@ export interface Settings {
    * auto-select Next reply and strip that prefix before send.
    */
   routeByPrefix?: boolean;
+  /** UI + preferred AI reply language */
+  locale?: 'en' | 'pt-BR' | 'es';
 }
 
 export const EMPTY_PROVIDER_KEYS: ProviderKeys = {
@@ -95,6 +97,7 @@ export const DEFAULT_SETTINGS: Settings = {
     model: DEFAULT_GROK_MODEL,
   },
   routeByPrefix: false,
+  locale: 'en',
 };
 
 /** Max characters of extracted text kept per file */

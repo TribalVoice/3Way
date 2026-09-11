@@ -81,12 +81,33 @@ import {
   peekRoutePrefix,
   routePrefixHint,
 } from '@/lib/routePrefix';
+import { LanguageProvider, useLanguage } from '@/lib/i18n/LanguageContext';
+import { DEFAULT_LOCALE, isLocale, type Locale } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 export default function Home() {
+  const [settings, setSettings] = useState<SettingsType | null>(null);
+  const locale: Locale = isLocale(settings?.locale)
+    ? settings!.locale!
+    : DEFAULT_LOCALE;
+
+  return (
+    <LanguageProvider locale={locale}>
+      <HomeApp settings={settings} setSettings={setSettings} />
+    </LanguageProvider>
+  );
+}
+
+function HomeApp({
+  settings,
+  setSettings,
+}: {
+  settings: SettingsType | null;
+  setSettings: React.Dispatch<React.SetStateAction<SettingsType | null>>;
+}) {
+  const { t } = useLanguage();
   const [room, setRoom] = useState<Room>(createEmptyRoom());
   const [projectIndex, setProjectIndex] = useState<ProjectIndex | null>(null);
-  const [settings, setSettings] = useState<SettingsType | null>(null);
   const [input, setInput] = useState('');
   const [speakTarget, setSpeakTarget] = useState<SpeakTarget>('both');
   const [isBusy, setIsBusy] = useState(false);
@@ -274,7 +295,7 @@ export default function Home() {
         target = routed.target;
         userContent = routed.text.trim();
         setSpeakTarget(target);
-        showToast(`Routed to ${routed.matchedLabel}`);
+        showToast(t('toast.routedTo', { label: routed.matchedLabel }));
         if (!userContent) {
           // Keyword only — just change Next reply, don't send an empty turn
           setInput('');
@@ -456,8 +477,8 @@ export default function Home() {
           roomRef.current = working;
           showToast(
             doc.truncated
-              ? `Attached ${doc.fileName} (truncated)`
-              : `Attached ${doc.fileName}`
+              ? t('toast.attachedTruncated', { name: doc.fileName })
+              : t('toast.attached', { name: doc.fileName })
           );
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : 'Attach failed';
@@ -473,24 +494,24 @@ export default function Home() {
 
   const activeTitle = projectIndex
     ? getActiveMeta(projectIndex).title
-    : 'Project';
+    : t('project.project');
 
   const handleExportJson = () => {
     if (room.turns.length === 0) {
-      showToast('Nothing to export yet.');
+      showToast(t('toast.nothingExport'));
       return;
     }
     exportRoomAsJson({ ...room, title: activeTitle });
-    showToast('Exported JSON');
+    showToast(t('toast.exportedJson'));
   };
 
   const handleExportMd = () => {
     if (room.turns.length === 0) {
-      showToast('Nothing to export yet.');
+      showToast(t('toast.nothingExport'));
       return;
     }
     exportRoomAsMarkdown({ ...room, title: activeTitle });
-    showToast('Exported Markdown');
+    showToast(t('toast.exportedMd'));
   };
 
   const handleImportFile = async (files: FileList | null) => {
@@ -501,16 +522,14 @@ export default function Home() {
       const imported = parseRoomImport(text);
       if (
         roomRef.current.turns.length > 0 &&
-        !window.confirm(
-          'Replace the current project transcript with the imported data?'
-        )
+        !window.confirm(t('confirm.replaceImport'))
       ) {
         return;
       }
       setRoom(imported);
       roomRef.current = imported;
       saveProjectRoom(projectIndex.activeId, imported);
-      showToast(`Imported ${imported.turns.length} turns`);
+      showToast(t('toast.importedTurns', { n: imported.turns.length }));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Import failed';
       showToast(msg);
@@ -524,7 +543,7 @@ export default function Home() {
     if (room.turns.length === 0) return;
     if (
       typeof window !== 'undefined' &&
-      !window.confirm('Clear this project’s transcript?')
+      !window.confirm(t('confirm.clearProject'))
     ) {
       return;
     }
@@ -556,7 +575,7 @@ export default function Home() {
     const empty = createEmptyRoom();
     setRoom(empty);
     roomRef.current = empty;
-    showToast('New project created');
+    showToast(t('toast.newProject'));
     void id;
   };
 
@@ -576,7 +595,9 @@ export default function Home() {
     setRoom(nextRoom);
     roomRef.current = nextRoom;
     showToast(
-      projectIndex.projects.length <= 1 ? 'Project cleared' : 'Project deleted'
+      projectIndex.projects.length <= 1
+        ? t('toast.projectCleared')
+        : t('toast.projectDeleted')
     );
   };
 
@@ -589,8 +610,12 @@ export default function Home() {
 
   const seatAReady = settings ? seatReady(settings, 'a') : false;
   const seatBReady = settings ? seatReady(settings, 'b') : false;
-  const labelA = settings ? seatDisplayName(settings.seatA) : 'Seat A';
-  const labelB = settings ? seatDisplayName(settings.seatB) : 'Seat B';
+  const labelA = settings
+    ? seatDisplayName(settings.seatA)
+    : t('settings.seatA');
+  const labelB = settings
+    ? seatDisplayName(settings.seatB)
+    : t('settings.seatB');
   const hasChat = room.turns.length > 0;
   const pending = hasPendingTurns(room) || isBusy;
 
@@ -725,10 +750,10 @@ export default function Home() {
           />
           <div className="min-w-0">
             <h1 className="text-base font-bold tracking-tight text-slate-100">
-              3Way Lite
+              {t('app.title')}
             </h1>
             <p className="truncate text-[10px] text-slate-500">
-              You · {labelA} · {labelB}
+              {t('app.subtitle', { a: labelA, b: labelB })}
             </p>
           </div>
           {projectIndex && (
@@ -778,7 +803,7 @@ export default function Home() {
               searchOpen && 'bg-slate-800 text-sky-400'
             )}
             aria-label="Search room"
-            title="Search room (Ctrl+F)"
+            title={t('header.search')}
           >
             <Search className="h-5 w-5" />
           </Button>
@@ -788,8 +813,8 @@ export default function Home() {
             onClick={handleExportJson}
             disabled={!hasChat}
             className="text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-            aria-label="Export JSON"
-            title="Export room as JSON"
+            aria-label={t('header.exportJson')}
+            title={t('header.exportJson')}
           >
             <Download className="h-5 w-5" />
           </Button>
@@ -799,8 +824,8 @@ export default function Home() {
             onClick={handleExportMd}
             disabled={!hasChat}
             className="hidden text-slate-400 hover:bg-slate-800 hover:text-slate-200 sm:inline-flex"
-            aria-label="Export Markdown"
-            title="Export room as Markdown"
+            aria-label={t('header.exportMd')}
+            title={t('header.exportMd')}
           >
             <FileDown className="h-5 w-5" />
           </Button>
@@ -810,8 +835,8 @@ export default function Home() {
             onClick={() => importInputRef.current?.click()}
             disabled={pending}
             className="text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-            aria-label="Import room"
-            title="Import room JSON"
+            aria-label={t('header.importRoom')}
+            title={t('header.importRoom')}
           >
             <Upload className="h-5 w-5" />
           </Button>
@@ -846,8 +871,8 @@ export default function Home() {
             size="icon"
             onClick={() => setHelpOpen(true)}
             className="text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-            aria-label="Getting started"
-            title="Getting started"
+            aria-label={t('header.gettingStarted')}
+            title={t('header.gettingStarted')}
           >
             <CircleHelp className="h-5 w-5" />
           </Button>
@@ -856,7 +881,7 @@ export default function Home() {
             size="icon"
             onClick={() => setSettingsOpen(true)}
             className="text-slate-400 hover:bg-slate-800 hover:text-slate-200"
-            aria-label="Settings"
+            aria-label={t('header.settings')}
           >
             <Settings className="h-5 w-5" />
           </Button>
@@ -867,7 +892,7 @@ export default function Home() {
               onClick={handleClear}
               disabled={pending}
               className="text-slate-400 hover:bg-slate-800 hover:text-red-400"
-              aria-label="Clear room"
+              aria-label={t('header.clearRoom')}
             >
               <Trash2 className="h-5 w-5" />
             </Button>
@@ -890,7 +915,7 @@ export default function Home() {
                   else goNextMatch();
                 }
               }}
-              placeholder="Search this room…"
+              placeholder={t('search.placeholder')}
               className="h-9 border-slate-700 bg-slate-800/80 text-sm text-slate-100 placeholder:text-slate-600"
             />
             <span className="shrink-0 text-[11px] tabular-nums text-slate-500">
@@ -907,8 +932,8 @@ export default function Home() {
               className="h-8 w-8 shrink-0 text-slate-400"
               onClick={goPrevMatch}
               disabled={searchMatches.length === 0}
-              title="Previous match"
-              aria-label="Previous match"
+              title={t('search.prev')}
+              aria-label={t('search.prev')}
             >
               <ChevronUp className="h-4 w-4" />
             </Button>
@@ -919,8 +944,8 @@ export default function Home() {
               className="h-8 w-8 shrink-0 text-slate-400"
               onClick={goNextMatch}
               disabled={searchMatches.length === 0}
-              title="Next match"
-              aria-label="Next match"
+              title={t('search.next')}
+              aria-label={t('search.next')}
             >
               <ChevronDown className="h-4 w-4" />
             </Button>
@@ -933,8 +958,8 @@ export default function Home() {
                 setSearchOpen(false);
                 setSearchQuery('');
               }}
-              title="Close search"
-              aria-label="Close search"
+              title={t('search.close')}
+              aria-label={t('search.close')}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -954,12 +979,10 @@ export default function Home() {
                 className="mb-4 h-[72px] w-[72px] rounded-2xl shadow-lg ring-1 ring-slate-700"
               />
               <h2 className="mb-2 text-xl font-semibold text-slate-200">
-                Three-way room
+                {t('welcome.heading')}
               </h2>
               <p className="mb-4 max-w-md text-sm text-slate-500">
-                You and two AI seats share one transcript. Each seat can be
-                Gemini, Grok, Claude, Perplexity, or NVIDIA Build. Attach docs,
-                stream replies, export backups — you control the pace.
+                {t('welcome.blurb')}
               </p>
 
               <div className="mb-6 flex flex-wrap items-center justify-center gap-2">
@@ -969,7 +992,7 @@ export default function Home() {
                     className="bg-sky-600 hover:bg-sky-500 text-white"
                   >
                     <Settings className="h-4 w-4 mr-2" />
-                    Configure seats
+                    {t('welcome.configureSeats')}
                   </Button>
                 )}
                 <Button
@@ -978,7 +1001,7 @@ export default function Home() {
                   className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800 hover:text-slate-100"
                 >
                   <CircleHelp className="h-4 w-4 mr-2" />
-                  Getting started
+                  {t('welcome.gettingStarted')}
                 </Button>
                 {isSupportEnabled() && (
                   <Button
@@ -1001,13 +1024,13 @@ export default function Home() {
               <div className="w-full max-w-md space-y-3 text-left">
                 <div className="rounded-xl border border-slate-800 bg-slate-800/40 p-3">
                   <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                    First-time setup
+                    {t('welcome.firstTimeSetup')}
                   </p>
                   <ol className="space-y-1.5 text-xs text-slate-500">
-                    <li>1. Settings → configure Seat A and Seat B (provider + key)</li>
-                    <li>2. Optional: paperclip to attach PDF or text files</li>
-                    <li>3. Choose Both / seat, then send a message</li>
-                    <li>4. Export JSON anytime to back up the room</li>
+                    <li>{t('welcome.step1')}</li>
+                    <li>{t('welcome.step2')}</li>
+                    <li>{t('welcome.step3')}</li>
+                    <li>{t('welcome.step4')}</li>
                   </ol>
                 </div>
 
@@ -1015,27 +1038,19 @@ export default function Home() {
                   <div className="rounded-xl border border-slate-800 bg-slate-800/30 p-3">
                     <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-slate-300">
                       <Monitor className="h-3.5 w-3.5 text-sky-400" />
-                      Windows desktop
+                      {t('welcome.windowsTitle')}
                     </p>
                     <p className="text-[11px] leading-relaxed text-slate-500">
-                      After Node.js is installed, run{' '}
-                      <span className="text-slate-400">create-desktop-shortcut.cmd</span>{' '}
-                      once, then double-click{' '}
-                      <span className="text-slate-400">3Way Lite</span> on the
-                      Desktop. Or use{' '}
-                      <span className="text-slate-400">launch-3way.cmd</span>.
+                      {t('welcome.windowsBody')}
                     </p>
                   </div>
                   <div className="rounded-xl border border-slate-800 bg-slate-800/30 p-3">
                     <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-slate-300">
                       <Smartphone className="h-3.5 w-3.5 text-sky-400" />
-                      Android &amp; iPhone
+                      {t('welcome.mobileTitle')}
                     </p>
                     <p className="text-[11px] leading-relaxed text-slate-500">
-                      Open this site in Chrome or Safari, then{' '}
-                      <span className="text-slate-400">Add to Home Screen</span>{' '}
-                      / Install app. Needs a hosted URL or your PC server on the
-                      same Wi‑Fi.
+                      {t('welcome.mobileBody')}
                     </p>
                   </div>
                 </div>
@@ -1052,11 +1067,11 @@ export default function Home() {
         <div className="mx-auto max-w-5xl space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[10px] uppercase tracking-wide text-slate-500 mr-1">
-              Next reply
+              {t('composer.nextReply')}
             </span>
             {(
               [
-                { id: 'both' as const, label: 'Both' },
+                { id: 'both' as const, label: t('composer.both') },
                 { id: 'a' as const, label: labelA },
                 { id: 'b' as const, label: labelB },
               ] as const
@@ -1094,12 +1109,14 @@ export default function Home() {
                   title="Ask the selected model(s) to speak again without typing a new message"
                 >
                   <MessagesSquare className="h-3.5 w-3.5" />
-                  Invite{' '}
-                  {speakTarget === 'both'
-                    ? 'both'
-                    : speakTarget === 'a'
-                      ? labelA
-                      : labelB}
+                  {t('composer.invite', {
+                    who:
+                      speakTarget === 'both'
+                        ? t('composer.inviteBoth')
+                        : speakTarget === 'a'
+                          ? labelA
+                          : labelB,
+                  })}
                 </button>
               </>
             )}
@@ -1123,8 +1140,10 @@ export default function Home() {
                     saveSettings(next);
                   }}
                 />
-                <span className="hidden sm:inline">Route by first word</span>
-                <span className="sm:hidden">Route</span>
+                <span className="hidden sm:inline">
+                  {t('composer.routeByPrefix')}
+                </span>
+                <span className="sm:hidden">{t('composer.route')}</span>
               </label>
             )}
           </div>
@@ -1145,8 +1164,8 @@ export default function Home() {
               disabled={pending || attachBusy}
               onClick={() => fileInputRef.current?.click()}
               className="h-10 w-10 shrink-0 text-slate-400 hover:bg-slate-700 hover:text-slate-100"
-              aria-label="Attach file"
-              title="Attach file (text extracted)"
+              title={t('composer.attachFile')}
+              aria-label={t('composer.attachFile')}
             >
               {attachBusy ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -1169,12 +1188,14 @@ export default function Home() {
               onKeyDown={handleKeyDown}
               placeholder={
                 settings?.routeByPrefix
-                  ? `${routePrefixHint(settings)} — then your message…`
+                  ? t('composer.placeholderRoute', {
+                      hint: routePrefixHint(settings),
+                    })
                   : speakTarget === 'both'
-                    ? 'Message the room — both seats stream…'
-                    : speakTarget === 'a'
-                      ? `Message the room — ${labelA} streams…`
-                      : `Message the room — ${labelB} streams…`
+                    ? t('composer.placeholderBoth')
+                    : t('composer.placeholderSeat', {
+                        name: speakTarget === 'a' ? labelA : labelB,
+                      })
               }
               disabled={pending}
               className="min-h-[44px] max-h-[160px] flex-1 resize-none border-0 bg-transparent px-2 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 focus-visible:ring-0 focus-visible:ring-offset-0"
@@ -1185,7 +1206,7 @@ export default function Home() {
               disabled={!input.trim() || pending}
               size="icon"
               className="h-10 w-10 shrink-0 rounded-xl bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-40"
-              aria-label="Send"
+              aria-label={t('composer.send')}
             >
               {pending ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -1195,8 +1216,7 @@ export default function Home() {
             </Button>
           </div>
           <p className="text-center text-[10px] text-slate-600">
-            Paperclip attaches text/PDF · replies stream live · download exports
-            the room
+            {t('composer.footer')}
             {isSupportEnabled() && (
               <>
                 {' · '}

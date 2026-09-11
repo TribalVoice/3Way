@@ -9,6 +9,8 @@ import {
   Settings,
 } from './types';
 import { getSeat, seatDisplayName, turnDisplayName } from './providers';
+import { replyLanguageInstruction } from './i18n';
+import { DEFAULT_LOCALE, isLocale } from './i18n/locales';
 
 export function createEmptyRoom(): Room {
   return { turns: [] };
@@ -170,6 +172,7 @@ export function systemPromptForSeat(
   const other = getSeat(settings, otherSeatId);
   const name = seatDisplayName(me);
   const otherName = seatDisplayName(other);
+  const locale = isLocale(settings.locale) ? settings.locale : DEFAULT_LOCALE;
   return [
     `You are ${name} in a live three-way chat room with a human user and ${otherName}.`,
     `The user controls the pace: they choose when you speak and may ask only you, only ${otherName}, or both of you.`,
@@ -177,6 +180,7 @@ export function systemPromptForSeat(
     `Documents appear as "[Attached document: filename]" with extracted text.`,
     `Speak as yourself. Be clear and direct. You may agree, disagree, or build on ${otherName}'s points when relevant.`,
     `Do not pretend to be the user or ${otherName}. Do not narrate the whole room unless asked.`,
+    replyLanguageInstruction(locale),
     // Readability: this UI shows plain text (light markdown only). Raw LaTeX is hard to read.
     `Formatting: write for a plain chat card. Prefer everyday prose and normal units (e.g. "q_traffic ≈ 10 to 20 kPa").`,
     `Do not use LaTeX or math mode (no $...$, \\text{}, \\approx, _{...}, etc.). Avoid dense markdown tables unless essential.`,
