@@ -1,6 +1,8 @@
 # 3Way Lite
 
-User-paced three-way chat: **you** and **two AI seats** share one room transcript. You control who speaks next.
+**v1.0.0** — User-paced three-way chat: **you** and **two AI seats** share one room transcript. You control who speaks next.
+
+> Free to run with your own API keys. PC-first. Tips welcome on [Ko-fi](https://ko-fi.com/tribalvoice). Custom versions on request.
 
 ## Features
 
@@ -93,6 +95,14 @@ NEXT_PUBLIC_BUY_ME_A_COFFEE_URL=https://ko-fi.com/yourname
 
 Or edit `lib/support.ts`.
 
+## Licence
+
+See [LICENSE](./LICENSE). Free for personal / evaluation use. Redistribution of modified competing products requires permission. Custom commercial builds available on request.
+
 ## Note
 
 This is a personal BYOK tool. The `/api/chat` route proxies your key to the provider — do not expose a public deployment without rate limits if you care about abuse of the relay endpoint.
+
+## Release
+
+GitHub Release: **v1.0.0** (source). Prefer cloning or downloading that tag so testers share the same build.
